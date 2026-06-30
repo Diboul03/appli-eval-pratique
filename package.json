@@ -12,6 +12,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.11.1",
     "clsx": "2.1.1",
     "docx": "^9.5.3",
     "lucide-react": "^0.575.0",

@@ -46,3 +46,12 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+      - name: Upload portable Windows exe (no installer)
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          cp src-tauri/target/release/app.exe "appli-eval-pratique-portable-${{ github.ref_name }}.exe"
+          gh release upload "${{ github.ref_name }}" "appli-eval-pratique-portable-${{ github.ref_name }}.exe" --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
