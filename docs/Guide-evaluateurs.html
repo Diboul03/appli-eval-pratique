@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Guide évaluateur — Grille d'évaluation pratique</title>
+<style>
+  :root { font-family: "Inter", system-ui, -apple-system, sans-serif; color: #0f172a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #f1f5f9; }
+  .sheet {
+    max-width: 800px; margin: 24px auto; background: #fff; padding: 32px 36px;
+    border-radius: 14px; box-shadow: 0 10px 30px rgba(15,23,42,.08);
+  }
+  header { border-bottom: 4px solid #6ee7b7; padding-bottom: 12px; margin-bottom: 18px; }
+  h1 { font-size: 20px; margin: 0; text-transform: uppercase; letter-spacing: -.01em; }
+  h2 { font-size: 13px; margin: 22px 0 8px; color: #047857; text-transform: uppercase; letter-spacing: .04em; }
+  .sub { color: #64748b; font-size: 13px; margin-top: 4px; }
+  ol, ul { margin: 6px 0; padding-left: 22px; }
+  li { font-size: 13.5px; line-height: 1.55; margin-bottom: 5px; }
+  .step { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 16px; margin-bottom: 12px; }
+  .step b { color: #0f172a; }
+  kbd { background: #e2e8f0; border-radius: 5px; padding: 1px 6px; font-size: 12px; font-family: ui-monospace, monospace; }
+  .pass { display: inline-block; background: #d1fae5; border: 1px solid #6ee7b7; color: #047857; font-weight: 800; padding: 2px 10px; border-radius: 999px; letter-spacing: .2rem; }
+  .warn { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 12px 16px; }
+  .warn h2 { color: #c2410c; margin-top: 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .print-btn { display: inline-block; margin: 0 auto 10px; }
+  .toolbar { text-align: center; margin: 12px; }
+  button { border: none; background: #059669; color: #fff; font-weight: 700; font-size: 14px; padding: 10px 18px; border-radius: 10px; cursor: pointer; }
+  footer { margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 10px; color: #94a3b8; font-size: 11px; text-align: center; }
+  @media print {
+    body { background: #fff; }
+    .toolbar { display: none; }
+    .sheet { box-shadow: none; margin: 0; max-width: none; border-radius: 0; padding: 0; }
+    h2 { color: #065f46; }
+  }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <button onclick="window.print()">🖨️ Imprimer ce guide</button>
+  </div>
+
+  <div class="sheet">
+    <header>
+      <h1>Grille d'évaluation pratique — Guide de l'évaluateur</h1>
+      <div class="sub">IFSO Vichy Clermont-Ferrand · Application sur clé USB · Fonctionne hors-ligne</div>
+    </header>
+
+    <h2>Ce que contient la clé USB</h2>
+    <ul>
+      <li><b>index.html</b> — l'application d'évaluation (à ouvrir d'un double-clic).</li>
+      <li><b>Guide-evaluateurs.html</b> — ce document.</li>
+      <li>Les <b>fichiers d'évaluation</b> enregistrés au fur et à mesure (un par étudiant).</li>
+    </ul>
+
+    <h2>Réglage à faire UNE seule fois sur l'ordinateur</h2>
+    <p class="sub">Pour que chaque évaluation s'enregistre toute seule sur la clé, on règle le dossier de téléchargement du navigateur sur la clé USB.</p>
+    <div class="grid2">
+      <div class="step">
+        <b>Safari (Mac)</b>
+        <ol>
+          <li>Menu <kbd>Safari</kbd> → <kbd>Réglages…</kbd></li>
+          <li>Onglet <kbd>Général</kbd></li>
+          <li>« Emplacement de téléchargement » → <b>Autre…</b> → choisir la <b>clé USB</b></li>
+        </ol>
+      </div>
+      <div class="step">
+        <b>Chrome / Edge</b>
+        <ol>
+          <li>Menu <kbd>⋮</kbd> → <kbd>Paramètres</kbd> → <kbd>Téléchargements</kbd></li>
+          <li>« Emplacement » → choisir la <b>clé USB</b></li>
+          <li><b>Désactiver</b> « Toujours demander où enregistrer »</li>
+        </ol>
+      </div>
+    </div>
+
+    <h2>Déroulé d'une évaluation</h2>
+    <div class="step">
+      <ol>
+        <li><b>Brancher la clé USB</b>, puis <b>double-cliquer</b> sur <kbd>index.html</kbd>.</li>
+        <li>Sélectionner l'étudiant, ajuster les notes sur le radar, compléter les sous-items.</li>
+        <li>Rédiger les commentaires (points positifs + axes d'amélioration).</li>
+        <li><b>Signer</b> dans le cadre, puis cliquer sur <b>« Oui, valider »</b>.</li>
+        <li>➡️ Le fichier de l'évaluation <b>s'enregistre automatiquement sur la clé</b>. Aucune autre action.</li>
+      </ol>
+    </div>
+
+    <h2>Ouvrir un fichier d'évaluation enregistré</h2>
+    <p>Les fichiers sont <b>protégés par mot de passe</b>. En double-cliquant sur un fichier, saisir le code :</p>
+    <p style="text-align:center"><span class="pass">0405</span></p>
+
+    <div class="warn">
+      <h2>⚠️ À respecter</h2>
+      <ul>
+        <li><b>La clé doit rester branchée</b> pendant toute l'évaluation et au moment de valider.</li>
+        <li>Ne pas vider ni renommer les fichiers de la clé : ce sont les sauvegardes.</li>
+        <li>Travailler dans <b>un seul onglet</b> à la fois. Éviter la navigation privée.</li>
+        <li>En fin de session, vérifier que les fichiers des étudiants sont bien présents sur la clé.</li>
+      </ul>
+    </div>
+
+    <footer>
+      Application autonome — aucune donnée n'est envoyée sur Internet. Les évaluations restent sur la clé USB.
+    </footer>
+  </div>
+</body>
+</html>

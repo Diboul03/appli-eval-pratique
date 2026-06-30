@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "Bash(npm ls *)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(mkdir -p \"/Users/diboul/Library/CloudStorage/GoogleDrive-francois.reliant@ifso-vichy.com/Mon Drive/appli eval pratique 2/.claude\")",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(chmod +x preparer-cle.command)",
+      "Bash(bash -n preparer-cle.command)",
+      "Bash(/bin/bash -c 'shopt -s nullglob; volumes=\\(\\); for v in /Volumes/*; do [ \"$v\" != \"/Volumes/Macintosh HD\" ] && volumes+=\\(\"$v\"\\); done; echo \"Nombre de clés détectées : ${#volumes[@]}\"; for x in \"${volumes[@]}\"; do echo \"  - $x\"; done')",
+      "Bash(open -R preparer-cle.command)",
+      "Bash(xxd)",
+      "Bash(find . -path ./node_modules -prune -o \\\\\\( -name \"*.png\" -o -name \"*.jpg\" -o -name \"*.jpeg\" -o -name \"*.svg\" -o -name \"*.webp\" \\\\\\) -print)",
+      "Bash(ls -la public)",
+      "Bash(ls -la src/assets)",
+      "Bash(awk '{print $5}')",
+      "Bash(python3 -c \"import PIL; print\\('PIL', PIL.__version__\\)\")",
+      "Bash(python3 -m pip install --quiet Pillow)",
+      "Bash(python3 -c \"import PIL; print\\('Pillow OK', PIL.__version__\\)\")",
+      "Bash(cp -n logo.png logo-original.png)",
+      "Bash(python3 -)"
+    ]
+  }
+}

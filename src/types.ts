@@ -1,0 +1,82 @@
+export type SubStatus = "" | "ACQUIS" | "EN_COURS" | "NON_ACQUIS";
+
+export type DrawMode = "single" | "group";
+
+export interface AxisSubItem {
+  id: string;
+  label: string;
+}
+
+export interface Axis {
+  id: string;
+  label: string;
+  max: number;
+  subItems: AxisSubItem[];
+}
+
+// QuickNote type removed (feature disabled)
+
+export interface StudentItem {
+  civilite?: string;
+  nom: string;
+  prenom: string;
+}
+
+export interface ExaminerItem {
+  nom: string;
+  prenom: string;
+}
+
+export interface StudentData {
+  civilite?: string;
+  nom: string;
+  prenom: string;
+  evaluator: string;
+  evaluatorNom: string;
+  evaluatorPrenom: string;
+  date: string; // ISO date (YYYY-MM-DD)
+  ue: string;
+  promotion: string;
+  questionNum: string;
+}
+
+export type Scores = Record<string, number>;
+
+export interface QuestionGroup {
+  id: string;
+  title: string;
+  questions: string[];
+}
+
+export type DrawPersisted =
+  | { mode: "single"; question: string }
+  | { mode: "group"; group: QuestionGroup };
+
+export interface SavedEvaluation {
+  id: string;
+  createdAt?: string;
+  student: StudentItem;
+  examiner: ExaminerItem;
+  date: string;
+  ue: string;
+  promotion?: string;
+  /**
+   * Commentaires combinés (pour compatibilité avec les anciennes versions et l'export)
+   */
+  remarks: string;
+  /** Commentaires positifs saisis dans l'UI */
+  remarksPositive?: string;
+  /** Axes d'amélioration saisis dans l'UI */
+  remarksImprovement?: string;
+  /**
+   * Durée de l'épreuve en millisecondes (entre le début du chrono et la première validation)
+   */
+  evaluationDurationMs?: number;
+  signatureImage: string | null;
+  axes: Axis[];
+  scores: Scores;
+  subChecks: Record<string, Record<string, SubStatus>>;
+  subComments: Record<string, Record<string, string>>;
+  drawPersisted: DrawPersisted | null;
+  total20: number;
+}
