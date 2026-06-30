@@ -1,8 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
-const isTauri = "__TAURI_INTERNALS__" in window;
-
-let writeTimer: ReturnType<typeof setTimeout> | null = null;
+const POLL_INTERVAL_MS = 1000;
 
 function dumpLocalStorage(): string {
   const data: Record<string, string> = {};
@@ -13,42 +11,34 @@ function dumpLocalStorage(): string {
   return JSON.stringify(data);
 }
 
-function scheduleSave() {
-  if (writeTimer) clearTimeout(writeTimer);
-  writeTimer = setTimeout(() => {
-    invoke("save_storage", { contents: dumpLocalStorage() }).catch(() => {
-      // ignore: portable save is best-effort
-    });
-  }, 300);
-}
-
 export async function initPortableStorage() {
-  if (!isTauri) return;
+  let raw: string;
+  try {
+    raw = await invoke<string>("load_storage");
+  } catch {
+    // not running inside Tauri (e.g. plain web build): nothing to bridge
+    return;
+  }
 
   try {
-    const raw = await invoke<string>("load_storage");
     const data = JSON.parse(raw) as Record<string, string>;
     for (const [key, value] of Object.entries(data)) {
       window.localStorage.setItem(key, value);
     }
   } catch {
-    // ignore: fall back to whatever localStorage already has
+    // ignore: corrupt portable file, fall back to whatever localStorage already has
   }
 
-  const originalSetItem = window.localStorage.setItem.bind(window.localStorage);
-  const originalRemoveItem = window.localStorage.removeItem.bind(window.localStorage);
-  const originalClear = window.localStorage.clear.bind(window.localStorage);
-
-  window.localStorage.setItem = (key, value) => {
-    originalSetItem(key, value);
-    scheduleSave();
-  };
-  window.localStorage.removeItem = (key) => {
-    originalRemoveItem(key);
-    scheduleSave();
-  };
-  window.localStorage.clear = () => {
-    originalClear();
-    scheduleSave();
-  };
+  // WebKit's localStorage cannot be reliably monkey-patched (it's a legacy
+  // platform object), so we poll for changes and write them to the portable
+  // file instead of intercepting setItem/removeItem/clear.
+  let lastDump = dumpLocalStorage();
+  setInterval(() => {
+    const current = dumpLocalStorage();
+    if (current === lastDump) return;
+    lastDump = current;
+    invoke("save_storage", { contents: current }).catch(() => {
+      // ignore: portable save is best-effort
+    });
+  }, POLL_INTERVAL_MS);
 }
