@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./node_modules/.bin/tsc *)",
+      "Bash(npm run build)",
+      "Bash(npm test)",
+      "Bash(\"$HOME/.local/bin/gh\" auth status*)",
+      "Bash(/usr/bin/log show *)"
+    ]
+  }
+}

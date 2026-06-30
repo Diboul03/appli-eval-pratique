@@ -7,8 +7,8 @@ interface RadarChartProps {
   setScores: React.Dispatch<React.SetStateAction<Scores>>;
   setTouched: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   touched: Record<string, boolean>;
-  isCoordinator: boolean;
   axesMaxSum: number;
+  showBareme: boolean;
 }
 
 export function RadarChart({
@@ -17,8 +17,8 @@ export function RadarChart({
   setScores,
   setTouched,
   touched,
-  isCoordinator,
   axesMaxSum,
+  showBareme,
 }: RadarChartProps) {
   const center = 370;
   const radius = 210;
@@ -158,13 +158,11 @@ export function RadarChart({
 
   return (
     <div className="flex w-full justify-center">
-      <div className="inline-block max-w-full overflow-auto rounded-3xl border border-slate-200 bg-white p-4 shadow-inner">
+      <div className="w-full max-w-[740px] rounded-3xl border border-slate-200 bg-white p-4 shadow-inner">
         <svg
           ref={svgRef}
-          width={740}
-          height={740}
           viewBox="0 0 740 740"
-          className={`${hoveredAxisIndex !== null ? "cursor-grab" : "cursor-not-allowed"} select-none touch-none`}
+          className={`h-auto w-full ${hoveredAxisIndex !== null ? "cursor-grab" : "cursor-not-allowed"} select-none touch-none`}
           onMouseDown={onRadarMouseDown}
           onMouseMove={onRadarMouseMove}
           onMouseUp={onRadarMouseUp}
@@ -249,7 +247,7 @@ export function RadarChart({
                   textAnchor="middle"
                   fill="#94a3b8"
                 >
-                  {isCoordinator
+                  {showBareme
                     ? `Barème: ${a.max.toFixed(1)}`
                     : `${Math.round((a.max / axesMaxSum) * 100)}% de la note finale`}
                 </text>

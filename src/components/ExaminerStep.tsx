@@ -2,11 +2,11 @@ import { UserCircle } from "lucide-react";
 
 interface ExaminerStepProps {
   evaluatorFullName: string;
-  isCoordinator: boolean;
   total20: number;
+  showFinalNote: boolean;
 }
 
-export function ExaminerStep({ evaluatorFullName, isCoordinator, total20 }: ExaminerStepProps) {
+export function ExaminerStep({ evaluatorFullName, total20, showFinalNote }: ExaminerStepProps) {
   return (
     <>
       <h3 className="mb-2 flex items-center gap-1 text-xs font-extrabold uppercase text-slate-500">
@@ -19,7 +19,7 @@ export function ExaminerStep({ evaluatorFullName, isCoordinator, total20 }: Exam
         className="w-full rounded-lg border-2 border-slate-200 bg-slate-100 px-3 py-2 font-bold"
       />
 
-      {isCoordinator && (
+      {showFinalNote && (
         <div
           className={`mt-4 rounded-xl border-2 px-4 py-2 text-center ${
             total20 < 10

@@ -1,6 +1,6 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PenTool, HelpCircle, Settings, CheckCircle2, AlertTriangle, XCircle, Target, PenLine, Download, Upload } from "lucide-react";
+import { PenTool, HelpCircle, Settings, CheckCircle2, AlertTriangle, XCircle, Target, PenLine, Download, Upload, KeyRound } from "lucide-react";
 import { useEvaluationForm, formatDurationMs } from "./hooks/useEvaluationForm";
 import { Modal } from "./components/Modal";
 import { Button } from "./components/Button";
@@ -28,6 +28,7 @@ export function App() {
 
   const [showHelp, setShowHelp] = useState(false);
   const [isCoordinator, setIsCoordinator] = useState(false);
+  const [adminView, setAdminView] = useState<"config" | "preview">("config");
   const [showCoordModal, setShowCoordModal] = useState(false);
   const [coordCode, setCoordCode] = useState("");
   const [coordError, setCoordError] = useState("");
@@ -66,6 +67,11 @@ export function App() {
   const [resetScope, setResetScope] = useState<"config" | "all">("config");
   const [resetCode, setResetCode] = useState("");
   const [resetError, setResetError] = useState("");
+
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [newAdminPassword, setNewAdminPassword] = useState("");
+  const [confirmAdminPassword, setConfirmAdminPassword] = useState("");
+  const [passwordChangeError, setPasswordChangeError] = useState("");
 
   useEffect(() => {
     if (!showDrawModal) return;
@@ -213,7 +219,7 @@ export function App() {
   }, []);
 
   const confirmReset = () => {
-    if (resetCode.trim() !== "0405") {
+    if (resetCode.trim() !== form.adminPassword) {
       setResetError("Code incorrect");
       return;
     }
@@ -228,6 +234,30 @@ export function App() {
         : "Données de configuration effacées.",
     );
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const openPasswordModal = useCallback(() => {
+    setNewAdminPassword("");
+    setConfirmAdminPassword("");
+    setPasswordChangeError("");
+    setShowPasswordModal(true);
+  }, []);
+
+  const confirmChangeAdminPassword = () => {
+    if (!newAdminPassword.trim()) {
+      setPasswordChangeError("Le mot de passe ne peut pas être vide.");
+      return;
+    }
+    if (newAdminPassword !== confirmAdminPassword) {
+      setPasswordChangeError("Les deux mots de passe ne correspondent pas.");
+      return;
+    }
+    form.setAdminPassword(newAdminPassword.trim());
+    setShowPasswordModal(false);
+    setNewAdminPassword("");
+    setConfirmAdminPassword("");
+    setPasswordChangeError("");
+    notify("Mot de passe administrateur modifié.");
   };
 
   // --- Sauvegarde / restauration complète (#1) ---
@@ -270,8 +300,9 @@ export function App() {
   );
 
   const validateCoordCode = () => {
-    if (coordCode.trim() === "0405") {
+    if (coordCode.trim() === form.adminPassword) {
       setIsCoordinator(true);
+      setAdminView("config");
       setShowCoordModal(false);
       setCoordError("");
       setCoordCode("");
@@ -360,14 +391,24 @@ export function App() {
 
                   {isCoordinator && (
                     <>
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={handleExitAdmin}
-                        className="uppercase"
-                      >
-                        Quitter le mode administrateur
-                      </Button>
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={handleExitAdmin}
+                          className="uppercase"
+                        >
+                          Quitter le mode administrateur
+                        </Button>
+                        <Button
+                          variant="neutral"
+                          size="sm"
+                          icon={<KeyRound size={13} />}
+                          onClick={openPasswordModal}
+                        >
+                          Mot de passe
+                        </Button>
+                      </div>
 
                       <div className="mt-1.5 flex flex-wrap items-end justify-end gap-2 rounded-lg bg-emerald-700/10 px-3 py-2 shadow-sm">
                         <EvaluationPicker
@@ -521,45 +562,80 @@ export function App() {
           ) : (
             <>
               {isCoordinator && (
-                <AdminPanel
-                  studentsSectionRef={studentsSectionRef}
-                  questionsSectionRef={questionsSectionRef}
-                  studentList={form.studentList}
-                  setStudentList={form.setStudentList}
-                  studentListValidated={form.studentListValidated}
-                  setStudentListValidated={form.setStudentListValidated}
-                  bulkStudentsText={bulkStudentsText}
-                  setBulkStudentsText={setBulkStudentsText}
-                  savedEvaluations={form.savedEvaluations}
-                  drawEnabled={form.drawEnabled}
-                  setDrawEnabled={form.setDrawEnabled}
-                  drawMode={form.drawMode}
-                  setDrawMode={form.setDrawMode}
-                  bulkSinglesText={bulkSinglesText}
-                  setBulkSinglesText={setBulkSinglesText}
-                  bulkGroupsText={bulkGroupsText}
-                  setBulkGroupsText={setBulkGroupsText}
-                  drawSingles={form.drawSingles}
-                  setDrawSingles={form.setDrawSingles}
-                  drawGroups={form.drawGroups}
-                  setDrawGroups={form.setDrawGroups}
-                  drawListValidated={form.drawListValidated}
-                  setDrawListValidated={form.setDrawListValidated}
-                  defaultExaminer={form.defaultExaminer}
-                  setDefaultExaminer={form.setDefaultExaminer}
-                  studentData={form.studentData}
-                  setStudentData={form.setStudentData}
-                  examDurationMinutes={form.examDurationMinutes}
-                  setExamDurationMinutes={form.setExamDurationMinutes}
-                  axes={form.axes}
-                  setAxes={form.setAxes}
-                  axesMaxSum={form.axesMaxSum}
-                  setScores={form.setScores}
-                  questionsCount={form.questionsCount}
-                  onRequestReset={openResetModal}
-                />
+                <>
+                  <div className="flex gap-2 border-b border-amber-200 bg-amber-50/60 px-6 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setAdminView("config")}
+                      className={`rounded-t-lg px-4 py-2 text-xs font-bold uppercase tracking-wide ${
+                        adminView === "config"
+                          ? "border border-b-0 border-amber-300 bg-white text-amber-900"
+                          : "text-amber-700 hover:bg-amber-100"
+                      }`}
+                    >
+                      Configuration
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdminView("preview")}
+                      className={`rounded-t-lg px-4 py-2 text-xs font-bold uppercase tracking-wide ${
+                        adminView === "preview"
+                          ? "border border-b-0 border-amber-300 bg-white text-amber-900"
+                          : "text-amber-700 hover:bg-amber-100"
+                      }`}
+                    >
+                      Aperçu évaluateur
+                    </button>
+                  </div>
+
+                  {adminView === "config" && (
+                    <AdminPanel
+                      studentsSectionRef={studentsSectionRef}
+                      questionsSectionRef={questionsSectionRef}
+                      studentList={form.studentList}
+                      setStudentList={form.setStudentList}
+                      studentListValidated={form.studentListValidated}
+                      setStudentListValidated={form.setStudentListValidated}
+                      bulkStudentsText={bulkStudentsText}
+                      setBulkStudentsText={setBulkStudentsText}
+                      savedEvaluations={form.savedEvaluations}
+                      drawEnabled={form.drawEnabled}
+                      setDrawEnabled={form.setDrawEnabled}
+                      drawMode={form.drawMode}
+                      setDrawMode={form.setDrawMode}
+                      bulkSinglesText={bulkSinglesText}
+                      setBulkSinglesText={setBulkSinglesText}
+                      bulkGroupsText={bulkGroupsText}
+                      setBulkGroupsText={setBulkGroupsText}
+                      drawSingles={form.drawSingles}
+                      setDrawSingles={form.setDrawSingles}
+                      drawGroups={form.drawGroups}
+                      setDrawGroups={form.setDrawGroups}
+                      drawListValidated={form.drawListValidated}
+                      setDrawListValidated={form.setDrawListValidated}
+                      defaultExaminer={form.defaultExaminer}
+                      setDefaultExaminer={form.setDefaultExaminer}
+                      studentData={form.studentData}
+                      setStudentData={form.setStudentData}
+                      examDurationMinutes={form.examDurationMinutes}
+                      setExamDurationMinutes={form.setExamDurationMinutes}
+                      showFinalNoteToEvaluator={form.showFinalNoteToEvaluator}
+                      setShowFinalNoteToEvaluator={form.setShowFinalNoteToEvaluator}
+                      showBaremeToEvaluator={form.showBaremeToEvaluator}
+                      setShowBaremeToEvaluator={form.setShowBaremeToEvaluator}
+                      axes={form.axes}
+                      setAxes={form.setAxes}
+                      axesMaxSum={form.axesMaxSum}
+                      setScores={form.setScores}
+                      questionsCount={form.questionsCount}
+                      onRequestReset={openResetModal}
+                    />
+                  )}
+                </>
               )}
 
+              {(!isCoordinator || adminView === "preview") && (
+              <>
               <div className="border-b border-slate-100 bg-slate-50/80 px-6 pt-4 pb-2">
                 <ol className="flex flex-wrap items-center gap-3 text-[11px] font-semibold text-slate-500">
                   {[
@@ -626,8 +702,8 @@ export function App() {
                   <div ref={step1Ref}>
                     <ExaminerStep
                       evaluatorFullName={`${form.studentData.evaluatorNom} ${form.studentData.evaluatorPrenom}`.trim()}
-                      isCoordinator={isCoordinator}
                       total20={form.total20}
+                      showFinalNote={isCoordinator || form.showFinalNoteToEvaluator}
                     />
                   </div>
                 </div>
@@ -691,18 +767,8 @@ export function App() {
                   </div>
                 )}
 
-                <RadarChart
-                  axes={form.axes}
-                  scores={form.scores}
-                  setScores={form.setScores}
-                  setTouched={form.setTouched}
-                  touched={form.touched}
-                  isCoordinator={isCoordinator}
-                  axesMaxSum={form.axesMaxSum}
-                />
-
-                <h3 className="mt-6 mb-2 flex items-center gap-2 text-sm font-extrabold uppercase text-slate-500">
-                  <PenTool size={16} /> Détails
+                <h3 className="mb-2 flex items-center gap-2 text-sm font-extrabold uppercase text-slate-500">
+                  <PenTool size={16} /> Indicateurs
                   <ContextHelp
                     title="Aide sous-items"
                     lines={[
@@ -721,6 +787,18 @@ export function App() {
                   setSubChecks={form.setSubChecks}
                   setSubComments={form.setSubComments}
                 />
+
+                <div className="mt-6">
+                  <RadarChart
+                    axes={form.axes}
+                    scores={form.scores}
+                    setScores={form.setScores}
+                    setTouched={form.setTouched}
+                    touched={form.touched}
+                    axesMaxSum={form.axesMaxSum}
+                    showBareme={isCoordinator || form.showBaremeToEvaluator}
+                  />
+                </div>
 
                 <div ref={step4Ref} className="mt-4 border-t border-slate-100 pt-4">
                   <RemarksStep
@@ -770,6 +848,8 @@ export function App() {
                   />
                 </div>
               </div>
+              </>
+              )}
             </>
           )}
 
@@ -1085,6 +1165,57 @@ export function App() {
             className="rounded-xl py-2"
           >
             Effacer
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        title="Changer le mot de passe administrateur"
+        showCloseButton={false}
+      >
+        <p className="text-sm text-slate-600">
+          Utilisé pour l'accès administrateur et la réinitialisation des données.
+          Mot de passe actuel : <span className="font-bold text-slate-800">{form.adminPassword}</span>
+        </p>
+
+        <div className="mt-4 space-y-2">
+          <input
+            type="password"
+            value={newAdminPassword}
+            onChange={e => { setNewAdminPassword(e.target.value); setPasswordChangeError(""); }}
+            placeholder="Nouveau mot de passe"
+            className="w-full rounded border px-3 py-2 text-sm"
+            autoFocus
+          />
+          <input
+            type="password"
+            value={confirmAdminPassword}
+            onChange={e => { setConfirmAdminPassword(e.target.value); setPasswordChangeError(""); }}
+            onKeyDown={e => { if (e.key === "Enter") confirmChangeAdminPassword(); }}
+            placeholder="Confirmer le mot de passe"
+            className="w-full rounded border px-3 py-2 text-sm"
+          />
+          {passwordChangeError && (
+            <p className="text-xs font-bold text-red-600">{passwordChangeError}</p>
+          )}
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <Button
+            variant="neutral"
+            onClick={() => setShowPasswordModal(false)}
+            className="rounded-xl py-2"
+          >
+            Annuler
+          </Button>
+          <Button
+            variant="warning"
+            onClick={confirmChangeAdminPassword}
+            className="rounded-xl py-2"
+          >
+            Modifier
           </Button>
         </div>
       </Modal>

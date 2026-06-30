@@ -1,4 +1,5 @@
-import { Plus, Trash2, UserCircle, GraduationCap, RotateCcw } from "lucide-react";
+import { useState } from "react";
+import { Plus, Trash2, UserCircle, GraduationCap, RotateCcw, ChevronDown, ChevronRight } from "lucide-react";
 import * as XLSX from "xlsx";
 import mammoth from "mammoth";
 import type {
@@ -53,6 +54,10 @@ interface AdminPanelProps {
   setStudentData: React.Dispatch<React.SetStateAction<StudentData>>;
   examDurationMinutes: number;
   setExamDurationMinutes: React.Dispatch<React.SetStateAction<number>>;
+  showFinalNoteToEvaluator: boolean;
+  setShowFinalNoteToEvaluator: React.Dispatch<React.SetStateAction<boolean>>;
+  showBaremeToEvaluator: boolean;
+  setShowBaremeToEvaluator: React.Dispatch<React.SetStateAction<boolean>>;
 
   axes: Axis[];
   setAxes: React.Dispatch<React.SetStateAction<Axis[]>>;
@@ -94,6 +99,10 @@ export function AdminPanel({
   setStudentData,
   examDurationMinutes,
   setExamDurationMinutes,
+  showFinalNoteToEvaluator,
+  setShowFinalNoteToEvaluator,
+  showBaremeToEvaluator,
+  setShowBaremeToEvaluator,
   axes,
   setAxes,
   axesMaxSum,
@@ -102,6 +111,7 @@ export function AdminPanel({
   onRequestReset,
 }: AdminPanelProps) {
   const { confirm, notify } = useDialogs();
+  const [collapsedAxes, setCollapsedAxes] = useState<Record<string, boolean>>({});
 
   return (
     <div className="border-b border-slate-200 bg-amber-50/60 p-6">
@@ -551,6 +561,32 @@ export function AdminPanel({
           />
         </div>
 
+        <div className="mb-6 rounded-2xl border border-amber-200 bg-white/90 p-4 shadow-sm">
+          <strong className="mb-2 block text-sm uppercase tracking-tight text-amber-900">
+            Visibilité côté évaluateur
+          </strong>
+          <div className="flex flex-col gap-2 sm:flex-row sm:gap-4">
+            <label className="flex flex-1 cursor-pointer items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <span className="text-sm text-slate-700">Afficher la note finale</span>
+              <input
+                type="checkbox"
+                checked={showFinalNoteToEvaluator}
+                onChange={e => setShowFinalNoteToEvaluator(e.target.checked)}
+                className="h-4 w-4"
+              />
+            </label>
+            <label className="flex flex-1 cursor-pointer items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <span className="text-sm text-slate-700">Afficher le barème de chaque question</span>
+              <input
+                type="checkbox"
+                checked={showBaremeToEvaluator}
+                onChange={e => setShowBaremeToEvaluator(e.target.checked)}
+                className="h-4 w-4"
+              />
+            </label>
+          </div>
+        </div>
+
         <div className="space-y-2">
           <div className="mb-1 flex items-center justify-between">
             <strong className="text-sm uppercase tracking-tight text-amber-900">
@@ -558,12 +594,27 @@ export function AdminPanel({
             </strong>
             <span className="text-[10px] uppercase text-slate-400">Étape 4 admin</span>
           </div>
-          {axes.map((a, idx) => (
+          {axes.map((a, idx) => {
+            const subCount = (a.subItems || []).length;
+            const isCollapsed = collapsedAxes[a.id] ?? true;
+            return (
             <div
               key={a.id}
               className="rounded border border-amber-300 bg-amber-50 p-3"
             >
               <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    setCollapsedAxes(prev => ({ ...prev, [a.id]: !isCollapsed }))
+                  }
+                  title={isCollapsed ? "Déplier les sous-items" : "Replier les sous-items"}
+                  aria-label={isCollapsed ? "Déplier les sous-items" : "Replier les sous-items"}
+                  className="px-1.5 py-1 text-amber-700 hover:bg-amber-100"
+                >
+                  {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                </Button>
                 <input
                   value={a.label}
                   onChange={e =>
@@ -601,7 +652,15 @@ export function AdminPanel({
                 </Button>
               </div>
 
-              {(a.subItems || []).map((si, sidx) => (
+              {isCollapsed && (
+                <div className="ml-9 mt-1 text-[11px] text-amber-700">
+                  {subCount > 0
+                    ? `${subCount} sous-item${subCount > 1 ? "s" : ""}`
+                    : "Aucun sous-item"}
+                </div>
+              )}
+
+              {!isCollapsed && (a.subItems || []).map((si, sidx) => (
                 <div
                   key={si.id}
                   className="mt-1 ml-4 flex items-center gap-2"
@@ -648,6 +707,7 @@ export function AdminPanel({
                 </div>
               ))}
 
+              {!isCollapsed && (
               <div className="mt-1 ml-4 flex items-center gap-2">
                 <input
                   id={`newSub-${a.id}`}
@@ -707,8 +767,10 @@ export function AdminPanel({
                   Valider
                 </Button>
               </div>
+              )}
             </div>
-          ))}
+            );
+          })}
 
           <div className="flex gap-2">
             <input

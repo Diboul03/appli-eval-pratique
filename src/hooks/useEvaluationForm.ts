@@ -74,6 +74,9 @@ export function useEvaluationForm() {
   const initialUe = getLocalStorageItem<string>("uePreset", "");
   const initialPromotion = getLocalStorageItem<string>("promotionPreset", "");
   const [examDurationMinutes, setExamDurationMinutes] = useLocalStorage<number>("examDurationMinutes", 0);
+  const [showFinalNoteToEvaluator, setShowFinalNoteToEvaluator] = useLocalStorage<boolean>("showFinalNoteToEvaluator", false);
+  const [showBaremeToEvaluator, setShowBaremeToEvaluator] = useLocalStorage<boolean>("showBaremeToEvaluator", false);
+  const [adminPassword, setAdminPassword] = useLocalStorage<string>("adminPassword", "0405");
 
   const [studentList, setStudentList] = useLocalStorage<StudentItem[]>("studentList", []);
   const [studentListValidated, setStudentListValidated] = useLocalStorage<boolean>("studentListValidated", false);
@@ -498,6 +501,8 @@ export function useEvaluationForm() {
     setDrawListValidated(false);
     setExamDurationMinutes(0);
     setDefaultExaminer({ nom: "", prenom: "" });
+    setShowFinalNoteToEvaluator(false);
+    setShowBaremeToEvaluator(false);
 
     // Axes et état d'évaluation en cours
     setAxes(defaultAxes);
@@ -548,6 +553,8 @@ export function useEvaluationForm() {
     setDrawListValidated,
     setExamDurationMinutes,
     setDefaultExaminer,
+    setShowFinalNoteToEvaluator,
+    setShowBaremeToEvaluator,
     setAxes,
     setSavedEvaluations,
     timer,
@@ -569,6 +576,8 @@ export function useEvaluationForm() {
       drawListValidated,
       examDurationMinutes,
       defaultExaminer,
+      showFinalNoteToEvaluator,
+      showBaremeToEvaluator,
       uePreset: getLocalStorageItem<string>("uePreset", ""),
       promotionPreset: getLocalStorageItem<string>("promotionPreset", ""),
     };
@@ -594,6 +603,8 @@ export function useEvaluationForm() {
     drawListValidated,
     examDurationMinutes,
     defaultExaminer,
+    showFinalNoteToEvaluator,
+    showBaremeToEvaluator,
   ]);
 
   const importAllData = useCallback(
@@ -610,6 +621,8 @@ export function useEvaluationForm() {
         drawListValidated?: boolean;
         examDurationMinutes?: number;
         defaultExaminer?: ExaminerItem;
+        showFinalNoteToEvaluator?: boolean;
+        showBaremeToEvaluator?: boolean;
         uePreset?: string;
         promotionPreset?: string;
       };
@@ -634,6 +647,8 @@ export function useEvaluationForm() {
       setDrawListValidated(!!data.drawListValidated);
       setExamDurationMinutes(data.examDurationMinutes ?? 0);
       setDefaultExaminer(data.defaultExaminer ?? { nom: "", prenom: "" });
+      setShowFinalNoteToEvaluator(!!data.showFinalNoteToEvaluator);
+      setShowBaremeToEvaluator(!!data.showBaremeToEvaluator);
 
       const importedAxes = data.axes ?? defaultAxes;
       setAxes(importedAxes);
@@ -683,6 +698,8 @@ export function useEvaluationForm() {
       setDrawListValidated,
       setExamDurationMinutes,
       setDefaultExaminer,
+      setShowFinalNoteToEvaluator,
+      setShowBaremeToEvaluator,
       setAxes,
       setDrawPersisted,
     ],
@@ -702,6 +719,9 @@ export function useEvaluationForm() {
 
     // Exam config
     examDurationMinutes, setExamDurationMinutes,
+    showFinalNoteToEvaluator, setShowFinalNoteToEvaluator,
+    showBaremeToEvaluator, setShowBaremeToEvaluator,
+    adminPassword, setAdminPassword,
 
     // Students
     studentList, setStudentList,
