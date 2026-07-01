@@ -1,0 +1,148 @@
+import ExcelJS from "exceljs";
+import type { SavedEvaluation } from "../types";
+import { logoDataUri } from "../assets/logo";
+
+const COLOR = {
+  emerald: "047857", emeraldLight: "D1FAE5", emeraldBg: "059669",
+  white: "FFFFFF", rowEven: "F0FDF4", grey: "F3F4F6", greyText: "374151",
+  dark: "1E3A2F", border: "CCCCCC", borderStrong: "047857",
+};
+
+const thin   = { style: "thin"   as const, color: { argb: "FF" + COLOR.border } };
+const medium = { style: "medium" as const, color: { argb: "FF" + COLOR.borderStrong } };
+const borderAll  = { top: thin,   bottom: thin,   left: thin, right: thin };
+const borderTop  = { top: medium, bottom: medium, left: thin, right: thin };
+const borderFoot = { top: medium, bottom: thin,   left: thin, right: thin };
+
+function fmtDuration(ms: number | undefined): string {
+  if (!ms || ms <= 0) return "—";
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s / 60)} min ${(s % 60).toString().padStart(2, "0")} s`;
+}
+
+function fmtDate(d: string): string {
+  if (!d) return "";
+  const [y, m, day] = d.split("-");
+  return `${day}/${m}/${y}`;
+}
+
+function sanitizeSheet(s: string): string {
+  return s.replace(/[[\]*?:/\\]/g, "-").replace(/\s+/g, " ").trim();
+}
+
+export async function buildRecapXlsxBuffer(savedEvaluations: SavedEvaluation[]): Promise<ArrayBuffer> {
+  const groups = new Map<string, SavedEvaluation[]>();
+  for (const ev of savedEvaluations) {
+    const key = `${ev.ue || "—"}|||${ev.date || ""}|||${ev.promotion || ""}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(ev);
+  }
+  const sortedGroups = [...groups.entries()].sort(([a], [b]) =>
+    b.split("|||")[1].localeCompare(a.split("|||")[1]),
+  );
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "Appli Eval Pratique — IFSO Vichy";
+  wb.created = new Date();
+
+  for (const [key, evals] of sortedGroups) {
+    const [ue, date, promotion] = key.split("|||");
+    const sorted = [...evals].sort((a, b) =>
+      `${a.student.nom} ${a.student.prenom}`.localeCompare(
+        `${b.student.nom} ${b.student.prenom}`, "fr",
+      ),
+    );
+
+    const sheetName = sanitizeSheet(ue).slice(0, 31) || "Récap";
+    const ws = wb.addWorksheet(sheetName, { views: [{ showGridLines: false }] });
+    ws.columns = [
+      { key: "nom",    width: 22 },
+      { key: "prenom", width: 20 },
+      { key: "note",   width: 14 },
+      { key: "duree",  width: 20 },
+    ];
+
+    // Row 1 — Logo
+    const logoBase64 = logoDataUri.replace(/^data:image\/png;base64,/, "");
+    const logoId = wb.addImage({ base64: logoBase64, extension: "png" });
+    const logoRow = ws.addRow(["", "", "", ""]);
+    logoRow.height = 50;
+    ws.mergeCells(`A${logoRow.number}:D${logoRow.number}`);
+    ws.addImage(logoId, { tl: { col: 0, row: logoRow.number - 1 }, ext: { width: 160, height: 61 } });
+
+    // Row 2 — UE title
+    const titleRow = ws.addRow([ue, "", "", ""]);
+    titleRow.height = 24;
+    ws.mergeCells(`A${titleRow.number}:D${titleRow.number}`);
+    const titleCell = titleRow.getCell(1);
+    titleCell.font = { bold: true, size: 13, color: { argb: "FF" + COLOR.white } };
+    titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + COLOR.emerald } };
+    titleCell.alignment = { horizontal: "center", vertical: "middle" };
+    titleCell.border = borderAll;
+
+    // Row 3 — Date + promotion subtitle
+    const subtitle = [fmtDate(date), promotion].filter(Boolean).join("   —   ");
+    const subRow = ws.addRow([subtitle, "", "", ""]);
+    subRow.height = 16;
+    ws.mergeCells(`A${subRow.number}:D${subRow.number}`);
+    const subCell = subRow.getCell(1);
+    subCell.font = { italic: true, size: 10, color: { argb: "FF" + COLOR.white } };
+    subCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + COLOR.emeraldBg } };
+    subCell.alignment = { horizontal: "center", vertical: "middle" };
+    subCell.border = borderAll;
+
+    // Spacer
+    ws.addRow([]);
+
+    // Headers
+    const headerRow = ws.addRow(["Nom", "Prénom", "Note / 20", "Durée réelle"]);
+    headerRow.height = 18;
+    headerRow.eachCell((c, ci) => {
+      c.font = { bold: true, size: 11, color: { argb: "FF" + COLOR.dark } };
+      c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + COLOR.emeraldLight } };
+      c.alignment = { horizontal: ci <= 2 ? "left" : "center", vertical: "middle" };
+      c.border = borderTop;
+    });
+
+    // Data rows
+    sorted.forEach((ev, idx) => {
+      const bg = idx % 2 === 0 ? COLOR.rowEven : COLOR.white;
+      const dataRow = ws.addRow([
+        ev.student.nom,
+        ev.student.prenom,
+        parseFloat(ev.total20.toFixed(1)),
+        fmtDuration(ev.evaluationDurationMs),
+      ]);
+      dataRow.height = 16;
+      dataRow.eachCell((c, ci) => {
+        c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + bg } };
+        c.alignment = { horizontal: ci <= 2 ? "left" : "center", vertical: "middle" };
+        c.border = borderAll;
+        if (ci === 3) {
+          c.font = { bold: true, size: 11, color: { argb: ev.total20 >= 10 ? "FF047857" : "FFB91C1C" } };
+        } else {
+          c.font = { size: 11 };
+        }
+      });
+    });
+
+    // Footer
+    const avg = (sorted.reduce((s, e) => s + e.total20, 0) / sorted.length).toFixed(1);
+    const footerRow = ws.addRow([
+      `${sorted.length} étudiant${sorted.length > 1 ? "s" : ""}`,
+      "",
+      `Moy. ${avg} / 20`,
+      "",
+    ]);
+    footerRow.height = 16;
+    footerRow.eachCell(c => {
+      c.font = { bold: true, italic: true, size: 10, color: { argb: "FF" + COLOR.greyText } };
+      c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + COLOR.grey } };
+      c.alignment = { horizontal: "center", vertical: "middle" };
+      c.border = borderFoot;
+    });
+    footerRow.getCell(1).alignment = { horizontal: "left", vertical: "middle" };
+  }
+
+  return wb.xlsx.writeBuffer();
+}

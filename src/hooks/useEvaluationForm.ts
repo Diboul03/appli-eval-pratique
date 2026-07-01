@@ -14,7 +14,8 @@ import { useLocalStorage, getLocalStorageItem } from "./useLocalStorage";
 import { useExamTimer } from "./useExamTimer";
 import { formatDate, formatTime, generateId } from "../utils";
 import { buildEvaluationsHtml } from "../utils/evaluations";
-import { buildProtectedHtml, encryptToPayload, decryptPayload } from "../utils/protect";
+import { buildProtectedHtml } from "../utils/protect";
+import { buildFolderName, saveFileToFolder } from "../utils/exportFolder";
 import { useDialogs } from "../components/Dialogs";
 import { sumAxesMax, computeTotal20, areAllSubItemsSelected } from "../utils/scoring";
 
@@ -77,6 +78,7 @@ export function useEvaluationForm() {
   const [showFinalNoteToEvaluator, setShowFinalNoteToEvaluator] = useLocalStorage<boolean>("showFinalNoteToEvaluator", false);
   const [showBaremeToEvaluator, setShowBaremeToEvaluator] = useLocalStorage<boolean>("showBaremeToEvaluator", false);
   const [adminPassword, setAdminPassword] = useLocalStorage<string>("adminPassword", "0405");
+  const [filePassword, setFilePassword] = useLocalStorage<string>("filePassword", "0405");
 
   const [studentList, setStudentList] = useLocalStorage<StudentItem[]>("studentList", []);
   const [studentListValidated, setStudentListValidated] = useLocalStorage<boolean>("studentListValidated", false);
@@ -377,35 +379,24 @@ export function useEvaluationForm() {
       total20,
     };
 
-    setSavedEvaluations(prev => {
-      const filtered = prev.filter(
-        ev => !(ev.student.nom === item.student.nom && ev.student.prenom === item.student.prenom),
-      );
-      return [item, ...filtered];
-    });
+    const newAllEvals = [item, ...savedEvaluations.filter(
+      ev => !(ev.student.nom === item.student.nom && ev.student.prenom === item.student.prenom),
+    )];
+    setSavedEvaluations(newAllEvals);
 
     try {
       const rawHtml = buildEvaluationsHtml([item]);
-      const html = await buildProtectedHtml(rawHtml);
-      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
+      const html = await buildProtectedHtml(rawHtml, filePassword);
       const [year, month, day] = item.date.split("-");
       const shortYear = year.slice(2);
       const safeNom = item.student.nom.replace(/\s+/g, "_");
       const safePrenom = item.student.prenom.replace(/\s+/g, "_");
       const datePart = `${day}-${month}-${shortYear}`;
-      // Heure de validation ajoutée au nom : garantit qu'une nouvelle validation
-      // (ex. correction du même étudiant) ne remplace jamais un fichier existant
-      // sur la clé USB — chaque enregistrement coexiste.
       const pad = (n: number) => n.toString().padStart(2, "0");
       const timePart = `${pad(now.getHours())}h${pad(now.getMinutes())}m${pad(now.getSeconds())}`;
-      link.href = url;
-      link.download = `${safeNom}-${safePrenom}-${datePart}_${timePart}.html`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      const dirName = buildFolderName(item.promotion || "", item.ue, item.date);
+      const fileName = `${safeNom}-${safePrenom}-${datePart}_${timePart}.html`;
+      await saveFileToFolder(dirName, fileName, html);
     } catch (err) {
       console.error("Erreur lors de l'export HTML automatique", err);
       notify(
@@ -415,7 +406,7 @@ export function useEvaluationForm() {
     }
 
     setExportDateTime({ date: formatDate(now), time: formatTime(now) });
-    return item;
+    return { item, newAllEvals };
   }, [studentData, combinedRemarks, remarksPositive, remarksImprovement, signatureImage, axes, scores, subChecks, subComments, drawPersisted, total20, timer.elapsedMs, setSavedEvaluations, notify]);
 
   const loadSavedEvaluation = useCallback((id: string) => {
@@ -503,6 +494,7 @@ export function useEvaluationForm() {
     setDefaultExaminer({ nom: "", prenom: "" });
     setShowFinalNoteToEvaluator(false);
     setShowBaremeToEvaluator(false);
+    setFilePassword("0405");
 
     // Axes et état d'évaluation en cours
     setAxes(defaultAxes);
@@ -581,7 +573,7 @@ export function useEvaluationForm() {
       uePreset: getLocalStorageItem<string>("uePreset", ""),
       promotionPreset: getLocalStorageItem<string>("promotionPreset", ""),
     };
-    const payload = await encryptToPayload(JSON.stringify(backup));
+    const payload = JSON.stringify(backup, null, 2);
     const blob = new Blob([payload], { type: "application/json;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -629,8 +621,7 @@ export function useEvaluationForm() {
 
       let data: FullBackup;
       try {
-        const text = await decryptPayload(encryptedJson);
-        data = JSON.parse(text) as FullBackup;
+        data = JSON.parse(encryptedJson) as FullBackup;
       } catch {
         return false; // mot de passe incorrect ou fichier invalide
       }
@@ -722,6 +713,7 @@ export function useEvaluationForm() {
     showFinalNoteToEvaluator, setShowFinalNoteToEvaluator,
     showBaremeToEvaluator, setShowBaremeToEvaluator,
     adminPassword, setAdminPassword,
+    filePassword, setFilePassword,
 
     // Students
     studentList, setStudentList,

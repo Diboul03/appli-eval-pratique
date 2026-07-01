@@ -41,10 +41,20 @@ fn save_storage(contents: String) -> Result<(), String> {
   fs::write(dir.join("storage.json"), contents).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn save_export_file(dir_name: String, file_name: String, contents: Vec<u8>) -> Result<String, String> {
+  let base = portable_data_dir()?;
+  let target_dir = base.join(&dir_name);
+  fs::create_dir_all(&target_dir).map_err(|e| e.to_string())?;
+  let file_path = target_dir.join(&file_name);
+  fs::write(&file_path, &contents).map_err(|e| e.to_string())?;
+  Ok(file_path.to_string_lossy().to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
-    .invoke_handler(tauri::generate_handler![load_storage, save_storage])
+    .invoke_handler(tauri::generate_handler![load_storage, save_storage, save_export_file])
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(

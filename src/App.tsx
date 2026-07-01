@@ -1,6 +1,6 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PenTool, HelpCircle, Settings, CheckCircle2, AlertTriangle, XCircle, Target, PenLine, Download, Upload, KeyRound } from "lucide-react";
+import { PenTool, HelpCircle, Settings, CheckCircle2, AlertTriangle, XCircle, Target, PenLine, Download, Upload, KeyRound, TableIcon } from "lucide-react";
 import { useEvaluationForm, formatDurationMs } from "./hooks/useEvaluationForm";
 import { Modal } from "./components/Modal";
 import { Button } from "./components/Button";
@@ -16,9 +16,12 @@ import { DashboardModal } from "./components/DashboardModal";
 import { RadarChart } from "./components/RadarChart";
 import { ContextHelp } from "./components/ContextHelp";
 import { AdminPanel } from "./components/AdminPanel";
+import { RecapTable } from "./components/RecapTable";
 import { useEvaluationStats } from "./hooks/useEvaluationStats";
 import { buildEvaluationsHtml } from "./utils/evaluations";
 import { buildProtectedHtml } from "./utils/protect";
+import { buildFolderName, saveFileToFolder } from "./utils/exportFolder";
+import { buildRecapXlsxBuffer } from "./utils/recapXlsx";
 import { logoDataUri } from "./assets/logo";
 import type { DrawPersisted } from "./types";
 
@@ -28,7 +31,7 @@ export function App() {
 
   const [showHelp, setShowHelp] = useState(false);
   const [isCoordinator, setIsCoordinator] = useState(false);
-  const [adminView, setAdminView] = useState<"config" | "preview">("config");
+  const [adminView, setAdminView] = useState<"config" | "preview" | "recap">("config");
   const [showCoordModal, setShowCoordModal] = useState(false);
   const [coordCode, setCoordCode] = useState("");
   const [coordError, setCoordError] = useState("");
@@ -72,6 +75,11 @@ export function App() {
   const [newAdminPassword, setNewAdminPassword] = useState("");
   const [confirmAdminPassword, setConfirmAdminPassword] = useState("");
   const [passwordChangeError, setPasswordChangeError] = useState("");
+
+  const [showFilePasswordModal, setShowFilePasswordModal] = useState(false);
+  const [newFilePassword, setNewFilePassword] = useState("");
+  const [confirmFilePassword, setConfirmFilePassword] = useState("");
+  const [filePasswordChangeError, setFilePasswordChangeError] = useState("");
 
   useEffect(() => {
     if (!showDrawModal) return;
@@ -260,6 +268,30 @@ export function App() {
     notify("Mot de passe administrateur modifié.");
   };
 
+  const openFilePasswordModal = useCallback(() => {
+    setNewFilePassword("");
+    setConfirmFilePassword("");
+    setFilePasswordChangeError("");
+    setShowFilePasswordModal(true);
+  }, []);
+
+  const confirmChangeFilePassword = () => {
+    if (!newFilePassword.trim()) {
+      setFilePasswordChangeError("Le mot de passe ne peut pas être vide.");
+      return;
+    }
+    if (newFilePassword !== confirmFilePassword) {
+      setFilePasswordChangeError("Les deux mots de passe ne correspondent pas.");
+      return;
+    }
+    form.setFilePassword(newFilePassword.trim());
+    setShowFilePasswordModal(false);
+    setNewFilePassword("");
+    setConfirmFilePassword("");
+    setFilePasswordChangeError("");
+    notify("Mot de passe des fichiers modifié.");
+  };
+
   // --- Sauvegarde / restauration complète (#1) ---
   const handleExportBackup = useCallback(async () => {
     try {
@@ -269,6 +301,34 @@ export function App() {
       notify("Échec de la création de la sauvegarde.", "error");
     }
   }, [form, notify]);
+
+  const handleExportRecapXlsx = useCallback(async () => {
+    if (form.savedEvaluations.length === 0) {
+      notify("Aucune évaluation enregistrée à exporter.", "error");
+      return;
+    }
+    try {
+      const buffer = await buildRecapXlsxBuffer(form.savedEvaluations);
+      const sanitize = (s: string) =>
+        s.replace(/[[\]*?:/\\]/g, "-").replace(/\s+/g, " ").trim();
+      const first = form.savedEvaluations[0];
+      const safeName = [sanitize(first.ue || ""), sanitize(first.promotion || "")]
+        .filter(Boolean).join(" - ").slice(0, 100) || "recap-notes";
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${safeName}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 500);
+    } catch {
+      notify("Erreur lors de la génération du fichier Excel.", "error");
+    }
+  }, [form.savedEvaluations, notify]);
 
   const handleRestoreFile = useCallback(
     async (file: File) => {
@@ -317,7 +377,7 @@ export function App() {
   const totalStudentsCount = form.studentList.length;
 
   return (
-    <div className="min-h-screen bg-slate-100 font-sans text-slate-800">
+    <div className="min-h-screen bg-stone-200 font-sans text-slate-800">
       <StickyHeader
         isCoordinator={isCoordinator}
         hasSelectedStudent={form.hasSelectedStudent}
@@ -339,7 +399,7 @@ export function App() {
       <div className="p-2 md:p-6">
         <div
           id="export-area"
-          className="mx-auto max-w-6xl overflow-hidden rounded-2xl bg-white shadow-2xl print:shadow-none"
+          className="mx-auto max-w-6xl overflow-hidden rounded-2xl bg-stone-50 shadow-2xl print:shadow-none"
         >
           <div className="border-b-4 border-emerald-300 bg-emerald-100 p-4 text-slate-800 md:p-6">
             <div className="mb-3 flex justify-center">
@@ -406,7 +466,15 @@ export function App() {
                           icon={<KeyRound size={13} />}
                           onClick={openPasswordModal}
                         >
-                          Mot de passe
+                          MDP admin
+                        </Button>
+                        <Button
+                          variant="neutral"
+                          size="sm"
+                          icon={<KeyRound size={13} />}
+                          onClick={openFilePasswordModal}
+                        >
+                          MDP fichiers
                         </Button>
                       </div>
 
@@ -455,7 +523,7 @@ export function App() {
                               return;
                             }
                             const rawHtml = buildEvaluationsHtml(form.savedEvaluations);
-                            const html = await buildProtectedHtml(rawHtml);
+                            const html = await buildProtectedHtml(rawHtml, form.filePassword);
                             const blob = new Blob([html], { type: "text/html;charset=utf-8" });
                             const url = URL.createObjectURL(blob);
                             const link = document.createElement("a");
@@ -468,6 +536,15 @@ export function App() {
                           }}
                         >
                           Export HTML
+                        </Button>
+                        <Button
+                          variant="neutral"
+                          size="sm"
+                          icon={<TableIcon size={13} />}
+                          className="bg-emerald-600 text-white hover:bg-emerald-700"
+                          onClick={handleExportRecapXlsx}
+                        >
+                          Tableau Excel récapitulatif des notes
                         </Button>
                         <Button
                           variant="neutral"
@@ -586,6 +663,17 @@ export function App() {
                     >
                       Aperçu évaluateur
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdminView("recap")}
+                      className={`rounded-t-lg px-4 py-2 text-xs font-bold uppercase tracking-wide ${
+                        adminView === "recap"
+                          ? "border border-b-0 border-amber-300 bg-white text-amber-900"
+                          : "text-amber-700 hover:bg-amber-100"
+                      }`}
+                    >
+                      Tableau récapitulatif
+                    </button>
                   </div>
 
                   {adminView === "config" && (
@@ -630,6 +718,10 @@ export function App() {
                       questionsCount={form.questionsCount}
                       onRequestReset={openResetModal}
                     />
+                  )}
+
+                  {adminView === "recap" && (
+                    <RecapTable savedEvaluations={form.savedEvaluations} />
                   )}
                 </>
               )}
@@ -698,7 +790,7 @@ export function App() {
               </div>
 
               <div className="grid grid-cols-1 gap-0 lg:grid-cols-12">
-                <div className="border-r border-slate-100 bg-slate-50/50 p-6 lg:col-span-5">
+                <div className="border-r border-stone-200 bg-emerald-50/40 p-6 lg:col-span-5">
                   <div ref={step1Ref}>
                     <ExaminerStep
                       evaluatorFullName={`${form.studentData.evaluatorNom} ${form.studentData.evaluatorPrenom}`.trim()}
@@ -778,17 +870,7 @@ export function App() {
                   />
                 </h3>
 
-                <EvaluationDetails
-                  axes={form.axes}
-                  isCoordinator={isCoordinator}
-                  scores={form.scores}
-                  subChecks={form.subChecks}
-                  subComments={form.subComments}
-                  setSubChecks={form.setSubChecks}
-                  setSubComments={form.setSubComments}
-                />
-
-                <div className="mt-6">
+                <div className="mt-2 mb-6">
                   <RadarChart
                     axes={form.axes}
                     scores={form.scores}
@@ -799,6 +881,16 @@ export function App() {
                     showBareme={isCoordinator || form.showBaremeToEvaluator}
                   />
                 </div>
+
+                <EvaluationDetails
+                  axes={form.axes}
+                  isCoordinator={isCoordinator}
+                  scores={form.scores}
+                  subChecks={form.subChecks}
+                  subComments={form.subComments}
+                  setSubChecks={form.setSubChecks}
+                  setSubComments={form.setSubComments}
+                />
 
                 <div ref={step4Ref} className="mt-4 border-t border-slate-100 pt-4">
                   <RemarksStep
@@ -961,7 +1053,21 @@ export function App() {
             onClick={async () => {
               setIsSaving(true);
               try {
-                await form.saveCurrentEvaluation();
+                const { item, newAllEvals } = await form.saveCurrentEvaluation();
+                // Exports dans le dossier promotion/UE/date
+                const sessionEvals = newAllEvals.filter(
+                  ev => ev.ue === item.ue && ev.date === item.date,
+                );
+                const dirName = buildFolderName(item.promotion || "", item.ue, item.date);
+                try {
+                  const fullHtml = await buildProtectedHtml(buildEvaluationsHtml(sessionEvals), form.filePassword);
+                  await saveFileToFolder(dirName, "promotion-complete.html", fullHtml);
+                } catch { /* non-bloquant */ }
+                try {
+                  const xlsxBuf = await buildRecapXlsxBuffer(sessionEvals);
+                  await saveFileToFolder(dirName, "recap-notes.xlsx", xlsxBuf);
+                } catch { /* non-bloquant */ }
+
                 handleResetEvaluation();
                 form.setStudentData(prev => ({ ...prev, nom: "", prenom: "" }));
                 form.setLoadedStudentKey(null);
@@ -1213,6 +1319,57 @@ export function App() {
           <Button
             variant="warning"
             onClick={confirmChangeAdminPassword}
+            className="rounded-xl py-2"
+          >
+            Modifier
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={showFilePasswordModal}
+        onClose={() => setShowFilePasswordModal(false)}
+        title="Changer le mot de passe des fichiers"
+        showCloseButton={false}
+      >
+        <p className="text-sm text-slate-600">
+          Protège les fichiers HTML exportés et les sauvegardes JSON.
+          Mot de passe actuel : <span className="font-bold text-slate-800">{form.filePassword}</span>
+        </p>
+
+        <div className="mt-4 space-y-2">
+          <input
+            type="password"
+            value={newFilePassword}
+            onChange={e => { setNewFilePassword(e.target.value); setFilePasswordChangeError(""); }}
+            placeholder="Nouveau mot de passe"
+            className="w-full rounded border px-3 py-2 text-sm"
+            autoFocus
+          />
+          <input
+            type="password"
+            value={confirmFilePassword}
+            onChange={e => { setConfirmFilePassword(e.target.value); setFilePasswordChangeError(""); }}
+            onKeyDown={e => { if (e.key === "Enter") confirmChangeFilePassword(); }}
+            placeholder="Confirmer le mot de passe"
+            className="w-full rounded border px-3 py-2 text-sm"
+          />
+          {filePasswordChangeError && (
+            <p className="text-xs font-bold text-red-600">{filePasswordChangeError}</p>
+          )}
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <Button
+            variant="neutral"
+            onClick={() => setShowFilePasswordModal(false)}
+            className="rounded-xl py-2"
+          >
+            Annuler
+          </Button>
+          <Button
+            variant="warning"
+            onClick={confirmChangeFilePassword}
             className="rounded-xl py-2"
           >
             Modifier

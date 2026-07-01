@@ -90,23 +90,23 @@ export const buildEvaluationsHtml = (savedEvaluations: SavedEvaluation[]): strin
       const axesDetails = ev.axes
         .map(axis => {
           const score = (ev.scores[axis.id] || 0).toFixed(1);
+          const axisComment = ev.subComments?.[axis.id]?.["__axis__"] || "";
+          const axisNeedsComment = (axis.subItems || []).some(si => {
+            const st = ev.subChecks?.[axis.id]?.[si.id] || "";
+            return st === "NON_ACQUIS" || st === "EN_COURS";
+          });
           const subItems = (axis.subItems || [])
             .map(si => {
               const status = ev.subChecks?.[axis.id]?.[si.id] || "";
-              const comment = ev.subComments?.[axis.id]?.[si.id] || "";
               return `<div class="sub-item"><div class="sub-label">${escapeHtml(
                 si.label,
               )}</div><div class="sub-status">Statut: ${escapeHtml(
                 status || "Non renseigné",
-              )}</div>${
-                status === "NON_ACQUIS" || status === "EN_COURS"
-                  ? `<div class="sub-comment">Commentaire: ${escapeHtml(
-                      comment || "-",
-                    )}</div>`
-                  : ""
-              }</div>`;
+              )}</div></div>`;
             })
-            .join("");
+            .join("") + (axisNeedsComment
+              ? `<div class="sub-comment">Commentaire: ${escapeHtml(axisComment || "-")}</div>`
+              : "");
 
           return `<div class="axis"><div class="axis-header"><div class="axis-title">${escapeHtml(
             axis.label,

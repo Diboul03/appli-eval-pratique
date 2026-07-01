@@ -626,6 +626,8 @@ export function AdminPanel({
                 />
                 <input
                   type="number"
+                  step="0.1"
+                  min="0"
                   value={a.max}
                   onChange={e =>
                     setAxes(prev =>
@@ -633,7 +635,7 @@ export function AdminPanel({
                         i === idx
                           ? {
                               ...x,
-                              max: Math.max(0, parseFloat(e.target.value) || 0),
+                              max: Math.max(0, Math.round(parseFloat(e.target.value) * 10) / 10 || 0),
                             }
                           : x,
                       ),
@@ -781,6 +783,8 @@ export function AdminPanel({
             <input
               id="newAxisMax"
               type="number"
+              step="0.1"
+              min="0"
               placeholder="Barème"
               className="w-20 rounded border px-2 py-1 text-sm"
             />

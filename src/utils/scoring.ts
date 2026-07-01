@@ -23,12 +23,14 @@ export function areAllSubItemsSelected(
   subComments: Record<string, Record<string, string>>,
 ): boolean {
   for (const a of axes) {
+    let axisNeedsComment = false;
     for (const si of a.subItems || []) {
       const st = subChecks[a.id]?.[si.id] ?? "";
       if (!st) return false;
-      if ((st === "NON_ACQUIS" || st === "EN_COURS") && !subComments[a.id]?.[si.id]?.trim()) {
-        return false;
-      }
+      if (st === "NON_ACQUIS" || st === "EN_COURS") axisNeedsComment = true;
+    }
+    if (axisNeedsComment && !subComments[a.id]?.["__axis__"]?.trim()) {
+      return false;
     }
   }
   return true;

@@ -15,11 +15,13 @@
     "@tauri-apps/api": "^2.11.1",
     "clsx": "2.1.1",
     "docx": "^9.5.3",
+    "exceljs": "^4.4.0",
     "lucide-react": "^0.575.0",
     "mammoth": "^1.11.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "tailwind-merge": "3.4.0",
+    "vite-plugin-node-polyfills": "^0.28.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
