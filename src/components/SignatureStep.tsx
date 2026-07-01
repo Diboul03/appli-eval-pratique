@@ -50,7 +50,7 @@ export function SignatureStep({
         .join(", ");
       return `Évaluez tous les axes du radar (manquants : ${missing})`;
     }
-    if (!allSubItemsSelected) return "Complétez tous les sous-items";
+    if (!allSubItemsSelected) return "Complétez tous les sous-indicateurs";
     if (!commentsReady) return "Renseignez les commentaires (points positifs et axes d'amélioration)";
     return "Veuillez compléter tous les champs";
   })();
@@ -131,8 +131,8 @@ export function SignatureStep({
             </span>
             <span>
               {hasAnySubItem
-                ? "Tous les sous-items renseignés"
-                : "Aucun sous-item configuré"}
+                ? "Tous les sous-indicateurs renseignés"
+                : "Aucun sous-indicateur configuré"}
             </span>
           </li>
 

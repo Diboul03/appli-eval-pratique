@@ -609,8 +609,8 @@ export function AdminPanel({
                   onClick={() =>
                     setCollapsedAxes(prev => ({ ...prev, [a.id]: !isCollapsed }))
                   }
-                  title={isCollapsed ? "Déplier les sous-items" : "Replier les sous-items"}
-                  aria-label={isCollapsed ? "Déplier les sous-items" : "Replier les sous-items"}
+                  title={isCollapsed ? "Déplier les sous-indicateurs" : "Replier les sous-indicateurs"}
+                  aria-label={isCollapsed ? "Déplier les sous-indicateurs" : "Replier les sous-indicateurs"}
                   className="px-1.5 py-1 text-amber-700 hover:bg-amber-100"
                 >
                   {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
@@ -657,8 +657,8 @@ export function AdminPanel({
               {isCollapsed && (
                 <div className="ml-9 mt-1 text-[11px] text-amber-700">
                   {subCount > 0
-                    ? `${subCount} sous-item${subCount > 1 ? "s" : ""}`
-                    : "Aucun sous-item"}
+                    ? `${subCount} sous-indicateur${subCount > 1 ? "s" : ""}`
+                    : "Aucun sous-indicateur"}
                 </div>
               )}
 
@@ -700,8 +700,8 @@ export function AdminPanel({
                         ),
                       )
                     }
-                    title="Supprimer ce sous-item"
-                    aria-label="Supprimer ce sous-item"
+                    title="Supprimer ce sous-indicateur"
+                    aria-label="Supprimer ce sous-indicateur"
                     className="bg-red-500 px-2 hover:bg-red-600"
                   >
                     ✕

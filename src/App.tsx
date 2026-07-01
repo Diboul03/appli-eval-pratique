@@ -862,9 +862,9 @@ export function App() {
                 <h3 className="mb-2 flex items-center gap-2 text-sm font-extrabold uppercase text-slate-500">
                   <PenTool size={16} /> Indicateurs
                   <ContextHelp
-                    title="Aide sous-items"
+                    title="Aide sous-indicateurs"
                     lines={[
-                      "Choisissez un statut pour chaque sous-item : acquis, en cours ou non acquis.",
+                      "Choisissez un statut pour chaque sous-indicateur : acquis, en cours ou non acquis.",
                       "Pour 'En cours' ou 'Non acquis', un commentaire est obligatoire.",
                     ]}
                   />
@@ -907,7 +907,7 @@ export function App() {
                     <ContextHelp
                       title="Aide signature"
                       lines={[
-                        "Vous ne pouvez signer qu'une fois l'évaluation, les sous-items et les remarques complétés.",
+                        "Vous ne pouvez signer qu'une fois l'évaluation, les sous-indicateurs et les remarques complétés.",
                         "Signez dans le cadre blanc avec la souris ou le doigt.",
                       ]}
                     />
@@ -979,7 +979,7 @@ export function App() {
         <ol className="ml-5 list-decimal space-y-2 text-sm">
           <li>Sélectionnez un étudiant</li>
           <li>Ajustez les notes sur le radar</li>
-          <li>Complétez les sous-items</li>
+          <li>Complétez les sous-indicateurs</li>
           <li>Rédigez les commentaires (points positifs et axes d'amélioration)</li>
           <li>Signez pour valider</li>
         </ol>
@@ -1065,7 +1065,8 @@ export function App() {
                 } catch { /* non-bloquant */ }
                 try {
                   const xlsxBuf = await buildRecapXlsxBuffer(sessionEvals);
-                  await saveFileToFolder(dirName, "recap-notes.xlsx", xlsxBuf);
+                  const xlsxName = dirName + ".xlsx";
+                  await saveFileToFolder(dirName, xlsxName, xlsxBuf);
                 } catch { /* non-bloquant */ }
 
                 handleResetEvaluation();
@@ -1333,7 +1334,7 @@ export function App() {
         showCloseButton={false}
       >
         <p className="text-sm text-slate-600">
-          Protège les fichiers HTML exportés et les sauvegardes JSON.
+          Protège les fichiers HTML exportés et le récapitulatif Excel. Les sauvegardes JSON ne sont pas protégées par ce mot de passe.
           Mot de passe actuel : <span className="font-bold text-slate-800">{form.filePassword}</span>
         </p>
 
