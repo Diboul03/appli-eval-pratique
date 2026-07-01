@@ -9,6 +9,7 @@ interface RadarChartProps {
   touched: Record<string, boolean>;
   axesMaxSum: number;
   showBareme: boolean;
+  showPercent: boolean;
 }
 
 export function RadarChart({
@@ -19,13 +20,14 @@ export function RadarChart({
   touched,
   axesMaxSum,
   showBareme,
+  showPercent,
 }: RadarChartProps) {
   const center = 370;
   const radius = 210;
   const labelRadius = radius + 90;
 
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const isDraggingRadar = useRef(false);
+  const lockedAxisIndex = useRef<number | null>(null);
   const [hoveredAxisIndex, setHoveredAxisIndex] = useState<number | null>(null);
 
   const angleForIndex = (i: number, n: number) => {
@@ -38,64 +40,44 @@ export function RadarChart({
     return { x: center + r * Math.cos(rad), y: center + r * Math.sin(rad) };
   };
 
-  const computeNearAxis = useCallback(
-    (clientX: number, clientY: number) => {
-      const svg = svgRef.current;
-      if (!svg) return { isNear: false, axisIndex: null };
+  const svgCoords = useCallback((clientX: number, clientY: number) => {
+    const svg = svgRef.current;
+    if (!svg) return { x: 0, y: 0 };
+    const rect = svg.getBoundingClientRect();
+    const scaleX = 740 / rect.width;
+    const scaleY = 740 / rect.height;
+    return {
+      x: (clientX - rect.left) * scaleX - center,
+      y: (clientY - rect.top) * scaleY - center,
+    };
+  }, []);
 
-      const rect = svg.getBoundingClientRect();
-      const x = clientX - rect.left - center;
-      const y = clientY - rect.top - center;
+  // Trouve l'axe le plus proche angulairement (tolérance large pour le hover)
+  const findClosestAxis = useCallback(
+    (x: number, y: number, toleranceDeg = 360): { idx: number; diff: number } => {
       const ang = (Math.atan2(y, x) * 180) / Math.PI;
-
       let minDiff = Infinity;
-      let closestIdx: number | null = null;
+      let closestIdx = 0;
       for (let i = 0; i < axes.length; i += 1) {
-        let a = angleForIndex(i, axes.length);
+        const a = angleForIndex(i, axes.length);
         let diff = Math.abs(a - ang);
         if (diff > 180) diff = 360 - diff;
-        if (diff < minDiff) {
-          minDiff = diff;
-          closestIdx = i;
-        }
+        if (diff < minDiff) { minDiff = diff; closestIdx = i; }
       }
-
-      const isNear = minDiff <= 10 && closestIdx !== null;
-      setHoveredAxisIndex(isNear ? closestIdx : null);
-      return { isNear, axisIndex: isNear ? closestIdx : null };
+      return { idx: minDiff <= toleranceDeg ? closestIdx : -1, diff: minDiff };
     },
     [axes.length],
   );
 
-  const updateFromClient = useCallback(
-    (clientX: number, clientY: number) => {
-      const svg = svgRef.current;
-      if (!svg) return;
-
-      const rect = svg.getBoundingClientRect();
-      const x = clientX - rect.left - center;
-      const y = clientY - rect.top - center;
-      const ang = (Math.atan2(y, x) * 180) / Math.PI;
+  // Met à jour la note de l'axe verrouillé en fonction de la distance au centre
+  const updateLockedAxis = useCallback(
+    (x: number, y: number) => {
+      const idx = lockedAxisIndex.current;
+      if (idx === null || idx < 0) return;
+      const axis = axes[idx];
       const dist = Math.sqrt(x * x + y * y);
-
-      let closestIdx = 0;
-      let minDiff = Infinity;
-      for (let i = 0; i < axes.length; i += 1) {
-        let a = angleForIndex(i, axes.length);
-        let diff = Math.abs(a - ang);
-        if (diff > 180) diff = 360 - diff;
-        if (diff < minDiff) {
-          minDiff = diff;
-          closestIdx = i;
-        }
-      }
-
-      if (minDiff > 10) return;
-
-      const axis = axes[closestIdx];
       let newVal = Math.round((dist / radius) * axis.max * 10) / 10;
       newVal = Math.max(0, Math.min(axis.max, newVal));
-
       setScores(prev => ({ ...prev, [axis.id]: newVal }));
       setTouched(prev => ({ ...prev, [axis.id]: true }));
     },
@@ -103,44 +85,56 @@ export function RadarChart({
   );
 
   const onRadarMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
-    const { isNear } = computeNearAxis(e.clientX, e.clientY);
-    if (isNear) {
-      isDraggingRadar.current = true;
-      updateFromClient(e.clientX, e.clientY);
+    const { x, y } = svgCoords(e.clientX, e.clientY);
+    const { idx, diff } = findClosestAxis(x, y, 20);
+    if (diff <= 20) {
+      lockedAxisIndex.current = idx;
+      setHoveredAxisIndex(idx);
+      updateLockedAxis(x, y);
     }
   };
 
   const onRadarMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    computeNearAxis(e.clientX, e.clientY);
-    if (isDraggingRadar.current) updateFromClient(e.clientX, e.clientY);
+    const { x, y } = svgCoords(e.clientX, e.clientY);
+    if (lockedAxisIndex.current !== null) {
+      // Pendant le drag : on reste sur l'axe verrouillé
+      updateLockedAxis(x, y);
+    } else {
+      // Hover : on cherche l'axe proche
+      const { idx, diff } = findClosestAxis(x, y, 15);
+      setHoveredAxisIndex(diff <= 15 ? idx : null);
+    }
   };
 
   const onRadarMouseUp = () => {
-    isDraggingRadar.current = false;
+    lockedAxisIndex.current = null;
   };
 
   const onRadarMouseLeave = () => {
-    isDraggingRadar.current = false;
+    lockedAxisIndex.current = null;
     setHoveredAxisIndex(null);
   };
 
   const onRadarTouchStart = (e: React.TouchEvent<SVGSVGElement>) => {
     const t = e.touches[0];
-    const { isNear } = computeNearAxis(t.clientX, t.clientY);
-    if (isNear) {
-      isDraggingRadar.current = true;
-      updateFromClient(t.clientX, t.clientY);
+    const { x, y } = svgCoords(t.clientX, t.clientY);
+    const { idx, diff } = findClosestAxis(x, y, 25);
+    if (diff <= 25) {
+      lockedAxisIndex.current = idx;
+      setHoveredAxisIndex(idx);
+      updateLockedAxis(x, y);
     }
   };
 
   const onRadarTouchMove = (e: React.TouchEvent<SVGSVGElement>) => {
+    if (lockedAxisIndex.current === null) return;
     const t = e.touches[0];
-    computeNearAxis(t.clientX, t.clientY);
-    if (isDraggingRadar.current) updateFromClient(t.clientX, t.clientY);
+    const { x, y } = svgCoords(t.clientX, t.clientY);
+    updateLockedAxis(x, y);
   };
 
   const onRadarTouchEnd = () => {
-    isDraggingRadar.current = false;
+    lockedAxisIndex.current = null;
     setHoveredAxisIndex(null);
   };
 
@@ -239,18 +233,20 @@ export function RadarChart({
                 >
                   {a.label}
                 </text>
-                <text
-                  x={lx}
-                  y={ly + 10}
-                  fontSize={11}
-                  fontWeight={700}
-                  textAnchor="middle"
-                  fill="#94a3b8"
-                >
-                  {showBareme
-                    ? `Barème: ${a.max.toFixed(1)}`
-                    : `${Math.round((a.max / axesMaxSum) * 100)}% de la note finale`}
-                </text>
+                {(showBareme || showPercent) && (
+                  <text
+                    x={lx}
+                    y={ly + 10}
+                    fontSize={11}
+                    fontWeight={700}
+                    textAnchor="middle"
+                    fill="#94a3b8"
+                  >
+                    {showBareme
+                      ? `Barème: ${a.max.toFixed(1)}`
+                      : `${Math.round((a.max / axesMaxSum) * 100)}% de la note finale`}
+                  </text>
+                )}
               </g>
             );
           })}

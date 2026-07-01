@@ -19,7 +19,6 @@ import { AdminPanel } from "./components/AdminPanel";
 import { RecapTable } from "./components/RecapTable";
 import { useEvaluationStats } from "./hooks/useEvaluationStats";
 import { buildEvaluationsHtml } from "./utils/evaluations";
-import { buildProtectedHtml } from "./utils/protect";
 import { buildFolderName, saveFileToFolder } from "./utils/exportFolder";
 import { buildRecapXlsxBuffer } from "./utils/recapXlsx";
 import { logoDataUri } from "./assets/logo";
@@ -76,10 +75,6 @@ export function App() {
   const [confirmAdminPassword, setConfirmAdminPassword] = useState("");
   const [passwordChangeError, setPasswordChangeError] = useState("");
 
-  const [showFilePasswordModal, setShowFilePasswordModal] = useState(false);
-  const [newFilePassword, setNewFilePassword] = useState("");
-  const [confirmFilePassword, setConfirmFilePassword] = useState("");
-  const [filePasswordChangeError, setFilePasswordChangeError] = useState("");
 
   useEffect(() => {
     if (!showDrawModal) return;
@@ -268,29 +263,6 @@ export function App() {
     notify("Mot de passe administrateur modifié.");
   };
 
-  const openFilePasswordModal = useCallback(() => {
-    setNewFilePassword("");
-    setConfirmFilePassword("");
-    setFilePasswordChangeError("");
-    setShowFilePasswordModal(true);
-  }, []);
-
-  const confirmChangeFilePassword = () => {
-    if (!newFilePassword.trim()) {
-      setFilePasswordChangeError("Le mot de passe ne peut pas être vide.");
-      return;
-    }
-    if (newFilePassword !== confirmFilePassword) {
-      setFilePasswordChangeError("Les deux mots de passe ne correspondent pas.");
-      return;
-    }
-    form.setFilePassword(newFilePassword.trim());
-    setShowFilePasswordModal(false);
-    setNewFilePassword("");
-    setConfirmFilePassword("");
-    setFilePasswordChangeError("");
-    notify("Mot de passe des fichiers modifié.");
-  };
 
   // --- Sauvegarde / restauration complète (#1) ---
   const handleExportBackup = useCallback(async () => {
@@ -469,9 +441,6 @@ export function App() {
                           <Button variant="neutral" size="sm" icon={<KeyRound size={13} />} onClick={openPasswordModal}>
                             MDP admin
                           </Button>
-                          <Button variant="neutral" size="sm" icon={<KeyRound size={13} />} onClick={openFilePasswordModal}>
-                            MDP fichiers
-                          </Button>
                         </div>
 
                         <div className="h-5 w-px bg-stone-300" />
@@ -509,8 +478,7 @@ export function App() {
                                 notify("Aucune évaluation terminée à exporter.", "error");
                                 return;
                               }
-                              const rawHtml = buildEvaluationsHtml(form.savedEvaluations);
-                              const html = await buildProtectedHtml(rawHtml, form.filePassword);
+                              const html = buildEvaluationsHtml(form.savedEvaluations);
                               const blob = new Blob([html], { type: "text/html;charset=utf-8" });
                               const url = URL.createObjectURL(blob);
                               const link = document.createElement("a");
@@ -668,7 +636,7 @@ export function App() {
                           : "text-amber-700 hover:bg-amber-100"
                       }`}
                     >
-                      Tableau récapitulatif
+                      Tableau récapitulatif des notes
                     </button>
                   </div>
 
@@ -707,6 +675,8 @@ export function App() {
                       setShowFinalNoteToEvaluator={form.setShowFinalNoteToEvaluator}
                       showBaremeToEvaluator={form.showBaremeToEvaluator}
                       setShowBaremeToEvaluator={form.setShowBaremeToEvaluator}
+                      showPercentToEvaluator={form.showPercentToEvaluator}
+                      setShowPercentToEvaluator={form.setShowPercentToEvaluator}
                       axes={form.axes}
                       setAxes={form.setAxes}
                       axesMaxSum={form.axesMaxSum}
@@ -791,7 +761,7 @@ export function App() {
                     <ExaminerStep
                       evaluatorFullName={`${form.studentData.evaluatorNom} ${form.studentData.evaluatorPrenom}`.trim()}
                       total20={form.total20}
-                      showFinalNote={isCoordinator || form.showFinalNoteToEvaluator}
+                      showFinalNote={(isCoordinator && adminView !== "preview") || form.showFinalNoteToEvaluator}
                     />
                   </div>
                 </div>
@@ -874,7 +844,8 @@ export function App() {
                     setTouched={form.setTouched}
                     touched={form.touched}
                     axesMaxSum={form.axesMaxSum}
-                    showBareme={isCoordinator || form.showBaremeToEvaluator}
+                    showBareme={(isCoordinator && adminView !== "preview") || form.showBaremeToEvaluator}
+                    showPercent={(isCoordinator && adminView !== "preview") || form.showPercentToEvaluator}
                   />
                 </div>
 
@@ -1056,7 +1027,7 @@ export function App() {
                 );
                 const dirName = buildFolderName(item.promotion || "", item.ue, item.date);
                 try {
-                  const fullHtml = await buildProtectedHtml(buildEvaluationsHtml(sessionEvals), form.filePassword);
+                  const fullHtml = buildEvaluationsHtml(sessionEvals);
                   await saveFileToFolder(dirName, "promotion-complete.html", fullHtml);
                 } catch { /* non-bloquant */ }
                 try {
@@ -1323,56 +1294,6 @@ export function App() {
         </div>
       </Modal>
 
-      <Modal
-        isOpen={showFilePasswordModal}
-        onClose={() => setShowFilePasswordModal(false)}
-        title="Changer le mot de passe des fichiers"
-        showCloseButton={false}
-      >
-        <p className="text-sm text-slate-600">
-          Protège uniquement les fichiers HTML exportés. Les fichiers Excel et les sauvegardes JSON ne sont pas protégés par ce mot de passe.
-          Mot de passe actuel : <span className="font-bold text-slate-800">{form.filePassword}</span>
-        </p>
-
-        <div className="mt-4 space-y-2">
-          <input
-            type="password"
-            value={newFilePassword}
-            onChange={e => { setNewFilePassword(e.target.value); setFilePasswordChangeError(""); }}
-            placeholder="Nouveau mot de passe"
-            className="w-full rounded border px-3 py-2 text-sm"
-            autoFocus
-          />
-          <input
-            type="password"
-            value={confirmFilePassword}
-            onChange={e => { setConfirmFilePassword(e.target.value); setFilePasswordChangeError(""); }}
-            onKeyDown={e => { if (e.key === "Enter") confirmChangeFilePassword(); }}
-            placeholder="Confirmer le mot de passe"
-            className="w-full rounded border px-3 py-2 text-sm"
-          />
-          {filePasswordChangeError && (
-            <p className="text-xs font-bold text-red-600">{filePasswordChangeError}</p>
-          )}
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <Button
-            variant="neutral"
-            onClick={() => setShowFilePasswordModal(false)}
-            className="rounded-xl py-2"
-          >
-            Annuler
-          </Button>
-          <Button
-            variant="warning"
-            onClick={confirmChangeFilePassword}
-            className="rounded-xl py-2"
-          >
-            Modifier
-          </Button>
-        </div>
-      </Modal>
 
       <DashboardModal
         open={showDashboard && !!stats}

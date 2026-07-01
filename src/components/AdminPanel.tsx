@@ -58,6 +58,8 @@ interface AdminPanelProps {
   setShowFinalNoteToEvaluator: React.Dispatch<React.SetStateAction<boolean>>;
   showBaremeToEvaluator: boolean;
   setShowBaremeToEvaluator: React.Dispatch<React.SetStateAction<boolean>>;
+  showPercentToEvaluator: boolean;
+  setShowPercentToEvaluator: React.Dispatch<React.SetStateAction<boolean>>;
 
   axes: Axis[];
   setAxes: React.Dispatch<React.SetStateAction<Axis[]>>;
@@ -103,6 +105,8 @@ export function AdminPanel({
   setShowFinalNoteToEvaluator,
   showBaremeToEvaluator,
   setShowBaremeToEvaluator,
+  showPercentToEvaluator,
+  setShowPercentToEvaluator,
   axes,
   setAxes,
   axesMaxSum,
@@ -575,15 +579,34 @@ export function AdminPanel({
                 className="h-4 w-4"
               />
             </label>
-            <label className="flex flex-1 cursor-pointer items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-              <span className="text-sm text-slate-700">Afficher le barème de chaque question</span>
-              <input
-                type="checkbox"
-                checked={showBaremeToEvaluator}
-                onChange={e => setShowBaremeToEvaluator(e.target.checked)}
-                className="h-4 w-4"
-              />
-            </label>
+          </div>
+
+          <div className="mt-1">
+            <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Affichage sur le radar</span>
+            <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
+              {([
+                { value: "bareme", label: "Barème par indicateur" },
+                { value: "percent", label: "% de la note finale" },
+                { value: "none", label: "Aucun" },
+              ] as const).map(opt => {
+                const current = showBaremeToEvaluator ? "bareme" : showPercentToEvaluator ? "percent" : "none";
+                return (
+                  <label key={opt.value} className="flex flex-1 cursor-pointer items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                    <span className="text-sm text-slate-700">{opt.label}</span>
+                    <input
+                      type="radio"
+                      name="radarDisplay"
+                      checked={current === opt.value}
+                      onChange={() => {
+                        setShowBaremeToEvaluator(opt.value === "bareme");
+                        setShowPercentToEvaluator(opt.value === "percent");
+                      }}
+                      className="h-4 w-4"
+                    />
+                  </label>
+                );
+              })}
+            </div>
           </div>
         </div>
 

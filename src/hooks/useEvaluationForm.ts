@@ -14,7 +14,6 @@ import { useLocalStorage, getLocalStorageItem } from "./useLocalStorage";
 import { useExamTimer } from "./useExamTimer";
 import { formatDate, formatTime, generateId } from "../utils";
 import { buildEvaluationsHtml } from "../utils/evaluations";
-import { buildProtectedHtml } from "../utils/protect";
 import { buildFolderName, saveFileToFolder } from "../utils/exportFolder";
 import { useDialogs } from "../components/Dialogs";
 import { sumAxesMax, computeTotal20, areAllSubItemsSelected } from "../utils/scoring";
@@ -77,8 +76,8 @@ export function useEvaluationForm() {
   const [examDurationMinutes, setExamDurationMinutes] = useLocalStorage<number>("examDurationMinutes", 0);
   const [showFinalNoteToEvaluator, setShowFinalNoteToEvaluator] = useLocalStorage<boolean>("showFinalNoteToEvaluator", false);
   const [showBaremeToEvaluator, setShowBaremeToEvaluator] = useLocalStorage<boolean>("showBaremeToEvaluator", false);
+  const [showPercentToEvaluator, setShowPercentToEvaluator] = useLocalStorage<boolean>("showPercentToEvaluator", true);
   const [adminPassword, setAdminPassword] = useLocalStorage<string>("adminPassword", "0405");
-  const [filePassword, setFilePassword] = useLocalStorage<string>("filePassword", "0405");
 
   const [studentList, setStudentList] = useLocalStorage<StudentItem[]>("studentList", []);
   const [studentListValidated, setStudentListValidated] = useLocalStorage<boolean>("studentListValidated", false);
@@ -386,7 +385,7 @@ export function useEvaluationForm() {
 
     try {
       const rawHtml = buildEvaluationsHtml([item]);
-      const html = await buildProtectedHtml(rawHtml, filePassword);
+      const html = rawHtml;
       const [year, month, day] = item.date.split("-");
       const shortYear = year.slice(2);
       const safeNom = item.student.nom.replace(/\s+/g, "_");
@@ -494,7 +493,7 @@ export function useEvaluationForm() {
     setDefaultExaminer({ nom: "", prenom: "" });
     setShowFinalNoteToEvaluator(false);
     setShowBaremeToEvaluator(false);
-    setFilePassword("0405");
+
 
     // Axes et état d'évaluation en cours
     setAxes(defaultAxes);
@@ -570,6 +569,7 @@ export function useEvaluationForm() {
       defaultExaminer,
       showFinalNoteToEvaluator,
       showBaremeToEvaluator,
+      showPercentToEvaluator,
       uePreset: getLocalStorageItem<string>("uePreset", ""),
       promotionPreset: getLocalStorageItem<string>("promotionPreset", ""),
     };
@@ -597,6 +597,7 @@ export function useEvaluationForm() {
     defaultExaminer,
     showFinalNoteToEvaluator,
     showBaremeToEvaluator,
+    showPercentToEvaluator,
   ]);
 
   const importAllData = useCallback(
@@ -615,6 +616,7 @@ export function useEvaluationForm() {
         defaultExaminer?: ExaminerItem;
         showFinalNoteToEvaluator?: boolean;
         showBaremeToEvaluator?: boolean;
+        showPercentToEvaluator?: boolean;
         uePreset?: string;
         promotionPreset?: string;
       };
@@ -640,6 +642,7 @@ export function useEvaluationForm() {
       setDefaultExaminer(data.defaultExaminer ?? { nom: "", prenom: "" });
       setShowFinalNoteToEvaluator(!!data.showFinalNoteToEvaluator);
       setShowBaremeToEvaluator(!!data.showBaremeToEvaluator);
+      setShowPercentToEvaluator(data.showPercentToEvaluator ?? true);
 
       const importedAxes = data.axes ?? defaultAxes;
       setAxes(importedAxes);
@@ -712,8 +715,8 @@ export function useEvaluationForm() {
     examDurationMinutes, setExamDurationMinutes,
     showFinalNoteToEvaluator, setShowFinalNoteToEvaluator,
     showBaremeToEvaluator, setShowBaremeToEvaluator,
+    showPercentToEvaluator, setShowPercentToEvaluator,
     adminPassword, setAdminPassword,
-    filePassword, setFilePassword,
 
     // Students
     studentList, setStudentList,

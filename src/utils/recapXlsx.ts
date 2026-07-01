@@ -144,9 +144,8 @@ export async function buildRecapXlsxBuffer(savedEvaluations: SavedEvaluation[]):
     footerRow.getCell(1).alignment = { horizontal: "left", vertical: "middle" };
   }
 
-  const buf = await wb.xlsx.writeBuffer();
-  // ExcelJS may return Buffer (Uint8Array subclass) or ArrayBuffer depending on environment
+  const buf = await wb.xlsx.writeBuffer() as unknown;
   if (buf instanceof ArrayBuffer) return buf;
-  const u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf as unknown as ArrayBufferLike);
-  return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
+  if (buf instanceof Uint8Array) return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
+  return buf as ArrayBuffer;
 }
