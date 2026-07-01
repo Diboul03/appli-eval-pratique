@@ -1330,7 +1330,7 @@ export function App() {
         showCloseButton={false}
       >
         <p className="text-sm text-slate-600">
-          Protège les fichiers HTML exportés et le récapitulatif Excel. Les sauvegardes JSON ne sont pas protégées par ce mot de passe.
+          Protège uniquement les fichiers HTML exportés. Les fichiers Excel et les sauvegardes JSON ne sont pas protégés par ce mot de passe.
           Mot de passe actuel : <span className="font-bold text-slate-800">{form.filePassword}</span>
         </p>
 
