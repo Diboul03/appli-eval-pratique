@@ -432,12 +432,13 @@ export function App() {
                   </Button>
                 )}
 
-                <div className="hidden flex-col items-end gap-1.5 md:flex">
+                <div className="hidden flex-col items-end gap-2 md:flex">
+
+                  {/* Ligne 1 : statut + aide + quitter */}
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wide border-emerald-400 bg-emerald-200 text-emerald-900">
                       {isCoordinator ? "Mode administrateur" : "Mode évaluateur"}
                     </span>
-
                     <Button
                       variant="ghost"
                       size="sm"
@@ -447,38 +448,104 @@ export function App() {
                     >
                       Aide
                     </Button>
+                    {isCoordinator && (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={handleExitAdmin}
+                        className="uppercase"
+                      >
+                        Quitter admin
+                      </Button>
+                    )}
                   </div>
 
                   {isCoordinator && (
                     <>
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={handleExitAdmin}
-                          className="uppercase"
-                        >
-                          Quitter le mode administrateur
-                        </Button>
-                        <Button
-                          variant="neutral"
-                          size="sm"
-                          icon={<KeyRound size={13} />}
-                          onClick={openPasswordModal}
-                        >
-                          MDP admin
-                        </Button>
-                        <Button
-                          variant="neutral"
-                          size="sm"
-                          icon={<KeyRound size={13} />}
-                          onClick={openFilePasswordModal}
-                        >
-                          MDP fichiers
-                        </Button>
+                      {/* Ligne 2 : actions groupées par thème */}
+                      <div className="flex flex-wrap items-center justify-end gap-1.5 rounded-lg border border-stone-200 bg-stone-100 px-3 py-2">
+                        {/* Groupe MDP */}
+                        <div className="flex items-center gap-1">
+                          <Button variant="neutral" size="sm" icon={<KeyRound size={13} />} onClick={openPasswordModal}>
+                            MDP admin
+                          </Button>
+                          <Button variant="neutral" size="sm" icon={<KeyRound size={13} />} onClick={openFilePasswordModal}>
+                            MDP fichiers
+                          </Button>
+                        </div>
+
+                        <div className="h-5 w-px bg-stone-300" />
+
+                        {/* Groupe sauvegarde */}
+                        <div className="flex items-center gap-1">
+                          <Button variant="neutral" size="sm" icon={<Download size={13} />} onClick={handleExportBackup}>
+                            Sauvegarde
+                          </Button>
+                          <Button variant="neutral" size="sm" icon={<Upload size={13} />} onClick={() => restoreInputRef.current?.click()}>
+                            Restaurer
+                          </Button>
+                          <input
+                            ref={restoreInputRef}
+                            type="file"
+                            accept=".json,application/json"
+                            className="sr-only"
+                            onChange={async e => {
+                              const file = e.target.files?.[0];
+                              e.target.value = "";
+                              if (file) await handleRestoreFile(file);
+                            }}
+                          />
+                        </div>
+
+                        <div className="h-5 w-px bg-stone-300" />
+
+                        {/* Groupe exports */}
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="info"
+                            size="sm"
+                            onClick={async () => {
+                              if (form.savedEvaluations.length === 0) {
+                                notify("Aucune évaluation terminée à exporter.", "error");
+                                return;
+                              }
+                              const rawHtml = buildEvaluationsHtml(form.savedEvaluations);
+                              const html = await buildProtectedHtml(rawHtml, form.filePassword);
+                              const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+                              const url = URL.createObjectURL(blob);
+                              const link = document.createElement("a");
+                              link.href = url;
+                              link.download = `evaluations-${new Date().toISOString().replace(/[:.]/g, "-")}.html`;
+                              document.body.appendChild(link);
+                              link.click();
+                              link.remove();
+                              window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+                            }}
+                          >
+                            Export HTML
+                          </Button>
+                          <Button
+                            variant="neutral"
+                            size="sm"
+                            icon={<TableIcon size={13} />}
+                            className="bg-emerald-600 text-white hover:bg-emerald-700"
+                            onClick={handleExportRecapXlsx}
+                          >
+                            Excel
+                          </Button>
+                          <Button
+                            variant="neutral"
+                            size="sm"
+                            className="bg-purple-600 text-white hover:bg-purple-700"
+                            onClick={() => setShowDashboard(true)}
+                          >
+                            Dashboard
+                          </Button>
+                        </div>
                       </div>
 
-                      <div className="mt-1.5 flex flex-wrap items-end justify-end gap-2 rounded-lg bg-emerald-700/10 px-3 py-2 shadow-sm">
+                      {/* Ligne 3 : sélection évaluation */}
+                      <div className="flex flex-wrap items-center justify-end gap-1.5 rounded-lg bg-emerald-700/10 px-3 py-2">
                         <EvaluationPicker
                           savedEvaluations={form.savedEvaluations}
                           value={form.selectedSavedId}
@@ -513,77 +580,6 @@ export function App() {
                         >
                           Supprimer
                         </Button>
-                        <Button
-                          variant="info"
-                          size="sm"
-                          className="uppercase"
-                          onClick={async () => {
-                            if (form.savedEvaluations.length === 0) {
-                              notify("Aucune évaluation terminée à exporter.", "error");
-                              return;
-                            }
-                            const rawHtml = buildEvaluationsHtml(form.savedEvaluations);
-                            const html = await buildProtectedHtml(rawHtml, form.filePassword);
-                            const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-                            const url = URL.createObjectURL(blob);
-                            const link = document.createElement("a");
-                            link.href = url;
-                            link.download = `evaluations-${new Date().toISOString().replace(/[:.]/g, "-")}.html`;
-                            document.body.appendChild(link);
-                            link.click();
-                            link.remove();
-                            window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-                          }}
-                        >
-                          Export HTML
-                        </Button>
-                        <Button
-                          variant="neutral"
-                          size="sm"
-                          icon={<TableIcon size={13} />}
-                          className="bg-emerald-600 text-white hover:bg-emerald-700"
-                          onClick={handleExportRecapXlsx}
-                        >
-                          Tableau Excel récapitulatif des notes
-                        </Button>
-                        <Button
-                          variant="neutral"
-                          size="sm"
-                          className="bg-purple-600 text-white hover:bg-purple-700"
-                          onClick={() => setShowDashboard(true)}
-                        >
-                          Tableau de bord
-                        </Button>
-                      </div>
-
-                      <div className="mt-1 flex flex-wrap items-center justify-end gap-2">
-                        <Button
-                          variant="neutral"
-                          size="sm"
-                          icon={<Download size={13} />}
-                          onClick={handleExportBackup}
-                        >
-                          Sauvegarde (.json)
-                        </Button>
-                        <Button
-                          variant="neutral"
-                          size="sm"
-                          icon={<Upload size={13} />}
-                          onClick={() => restoreInputRef.current?.click()}
-                        >
-                          Restaurer
-                        </Button>
-                        <input
-                          ref={restoreInputRef}
-                          type="file"
-                          accept=".json,application/json"
-                          className="sr-only"
-                          onChange={async e => {
-                            const file = e.target.files?.[0];
-                            e.target.value = "";
-                            if (file) await handleRestoreFile(file);
-                          }}
-                        />
                       </div>
                     </>
                   )}
