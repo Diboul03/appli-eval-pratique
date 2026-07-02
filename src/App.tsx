@@ -9,7 +9,6 @@ import { EvaluationPicker } from "./components/EvaluationPicker";
 import { StudentStep } from "./components/StudentStep";
 import { StickyHeader } from "./components/StickyHeader";
 import { ExaminerStep } from "./components/ExaminerStep";
-import { EvaluationDetails } from "./components/EvaluationDetails";
 import { RemarksStep } from "./components/RemarksStep";
 import { SignatureStep } from "./components/SignatureStep";
 import { DashboardModal } from "./components/DashboardModal";
@@ -740,7 +739,7 @@ export function App() {
                       ) : (
                         <XCircle className="h-3 w-3 text-slate-400" />
                       )}
-                      <span>Sous-items renseignés : {form.completedSubItems}/{form.totalSubItems}</span>
+                      <span>Sous-indicateurs renseignés : {form.completedSubItems}/{form.totalSubItems}</span>
                     </span>
                   )}
 
@@ -836,7 +835,7 @@ export function App() {
                   />
                 </h3>
 
-                <div className="mt-2 mb-6">
+                <div className="mt-2 mb-4">
                   <RadarChart
                     axes={form.axes}
                     scores={form.scores}
@@ -846,18 +845,88 @@ export function App() {
                     axesMaxSum={form.axesMaxSum}
                     showBareme={(isCoordinator && adminView !== "preview") || form.showBaremeToEvaluator}
                     showPercent={(isCoordinator && adminView !== "preview") || form.showPercentToEvaluator}
+                    subChecks={form.subChecks}
+                    setSubChecks={form.setSubChecks}
                   />
                 </div>
 
-                <EvaluationDetails
-                  axes={form.axes}
-                  isCoordinator={isCoordinator}
-                  scores={form.scores}
-                  subChecks={form.subChecks}
-                  subComments={form.subComments}
-                  setSubChecks={form.setSubChecks}
-                  setSubComments={form.setSubComments}
-                />
+                {/* Commentaires obligatoires : uniquement si un sous-indicateur est EN_COURS ou NON_ACQUIS */}
+                {form.axes.some(axis =>
+                  (axis.subItems || []).some(si => {
+                    const st = form.subChecks[axis.id]?.[si.id] ?? "";
+                    return st === "NON_ACQUIS" || st === "EN_COURS";
+                  })
+                ) && (
+                  <div className="mb-4 space-y-3">
+                    <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
+                      <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-amber-600" />
+                      <p className="text-xs font-semibold text-amber-800">
+                        Un ou plusieurs sous-indicateurs sont cochés <span className="font-bold">"En cours d'acquisition"</span> ou <span className="font-bold">"Non acquis"</span>. Vous devez rédiger un commentaire par indicateur concerné ci-dessous avant de pouvoir signer.
+                      </p>
+                    </div>
+                    {form.axes
+                      .filter(axis =>
+                        (axis.subItems || []).some(si => {
+                          const st = form.subChecks[axis.id]?.[si.id] ?? "";
+                          return st === "NON_ACQUIS" || st === "EN_COURS";
+                        })
+                      )
+                      .map(axis => {
+                        const axisComment = form.subComments[axis.id]?.["__axis__"] ?? "";
+                        const triggeringItems = (axis.subItems || []).filter(si => {
+                          const st = form.subChecks[axis.id]?.[si.id] ?? "";
+                          return st === "NON_ACQUIS" || st === "EN_COURS";
+                        });
+                        return (
+                          <div key={axis.id} className={`rounded-xl border-2 p-3 shadow-sm ${axisComment.trim() ? "border-slate-300 bg-white" : "border-red-400 bg-red-50"}`}>
+                            <div className="mb-2 flex items-start gap-2">
+                              <AlertTriangle size={15} className={`mt-0.5 flex-shrink-0 ${axisComment.trim() ? "text-slate-400" : "text-red-500"}`} />
+                              <div>
+                                <div className={`text-sm font-extrabold uppercase ${axisComment.trim() ? "text-slate-600" : "text-red-700"}`}>
+                                  {axis.label}
+                                </div>
+                                <div className="mt-0.5 space-y-0.5">
+                                  {triggeringItems.map(si => {
+                                    const st = form.subChecks[axis.id]?.[si.id] ?? "";
+                                    return (
+                                      <div key={si.id} className="flex items-center gap-1.5 text-[11px] font-semibold">
+                                        <span className={`inline-block h-2.5 w-2.5 rounded-full flex-shrink-0 ${st === "NON_ACQUIS" ? "bg-red-500" : "bg-amber-400"}`} />
+                                        <span className="text-slate-700">{si.label}</span>
+                                        <span className={`font-bold ${st === "NON_ACQUIS" ? "text-red-600" : "text-amber-600"}`}>
+                                          — {st === "NON_ACQUIS" ? "Non acquis" : "En cours d'acquisition"}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                            <textarea
+                              rows={3}
+                              value={axisComment}
+                              onChange={e =>
+                                form.setSubComments(prev => ({
+                                  ...prev,
+                                  [axis.id]: { ...prev[axis.id], ["__axis__"]: e.target.value },
+                                }))
+                              }
+                              placeholder={`Expliquez ici pourquoi ce sous-indicateur est ${triggeringItems.some(s => form.subChecks[axis.id]?.[s.id] === "NON_ACQUIS") ? "non acquis" : "en cours d'acquisition"}…`}
+                              className={`w-full rounded-lg border-2 px-3 py-2 text-sm ${
+                                axisComment.trim()
+                                  ? "border-emerald-300 bg-white focus:border-emerald-400"
+                                  : "border-red-300 bg-white focus:border-red-500"
+                              } outline-none transition-colors`}
+                            />
+                            {!axisComment.trim() && (
+                              <p className="mt-1 text-[10px] font-semibold text-red-500">
+                                ⚠ Ce commentaire est obligatoire pour pouvoir signer
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
 
                 <div ref={step4Ref} className="mt-4 border-t border-slate-100 pt-4">
                   <RemarksStep
