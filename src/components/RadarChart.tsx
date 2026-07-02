@@ -8,10 +8,10 @@ const SI_COLORS: Record<"ACQUIS" | "EN_COURS" | "NON_ACQUIS", { selected: string
 };
 const SI_STATUSES = ["ACQUIS", "EN_COURS", "NON_ACQUIS"] as const;
 function wrapLabel(s: string): [string, string] {
-  if (s.length <= 14) return [s, ""];
-  const mid = s.lastIndexOf(" ", 14);
+  if (s.length <= 22) return [s, ""];
+  const mid = s.lastIndexOf(" ", 22);
   if (mid > 3) return [s.substring(0, mid), s.substring(mid + 1)];
-  return [s.substring(0, 14), s.substring(14)];
+  return [s.substring(0, 22), s.substring(22)];
 }
 
 interface RadarChartProps {
@@ -41,7 +41,8 @@ export function RadarChart({
 }: RadarChartProps) {
   const center = 500;
   const radius = 210;
-  const labelRadius = radius + 150;
+  const lblRadX = radius + 140; // horizontal clearance (wider for ±0°/180° axes)
+  const lblRadY = radius + 70;  // vertical clearance (closer for top/bottom axes)
 
   const svgRef = useRef<SVGSVGElement | null>(null);
   const lockedAxisIndex = useRef<number | null>(null);
@@ -238,43 +239,53 @@ export function RadarChart({
 
           {axes.map((a, i) => {
             const angle = angleForIndex(i, axes.length);
-            const coords = getPointCoords(a.max, a.max, angle);
+            const _coords = getPointCoords(a.max, a.max, angle); void _coords;
             const rad = (angle * Math.PI) / 180;
-            const lx = center + labelRadius * Math.cos(rad);
-            const ly = center + labelRadius * Math.sin(rad);
+            const lx = center + lblRadX * Math.cos(rad);
+            const ly = center + lblRadY * Math.sin(rad);
             const bg = touched[a.id] ? "#ffffff" : "#d1fae5";
             const isHighlighted = hoveredAxisIndex === i;
 
             const siItems = a.subItems || [];
             const siCount = siItems.length;
-            const siRowH = 52;
+            const siRowH = 46;
             const siAreaH = siCount > 0 ? siCount * siRowH + 4 : 0;
-            // Place sub-items above the label when near the bottom of the viewBox
-            const flipUp = siCount > 0 && ly + 16 + siAreaH > 960;
+            // Box shifts up for upper-half axes so sub-items don't overlap radar
+            const flipUp = siCount > 0 && Math.sin(rad) < -0.1;
             const rectY = flipUp ? ly - 24 - siAreaH : ly - 24;
             const rectH = 40 + siAreaH;
-            const siBaseY = flipUp ? ly - 24 - siAreaH + 2 : ly + 20;
+            // Title always at top of box, sub-items always below title
+            const titleY = rectY + 18;
+            const siBaseY = rectY + 40;
+
+            const radarEdgeX = center + radius * Math.cos(rad);
+            const radarEdgeY = center + radius * Math.sin(rad);
 
             return (
               <g key={a.id}>
                 <line
                   x1={center} y1={center}
-                  x2={coords.x} y2={coords.y}
+                  x2={radarEdgeX} y2={radarEdgeY}
                   stroke={isHighlighted ? "#60a5fa" : "#e2e8f0"}
                   strokeWidth={isHighlighted ? 3 : 1}
                 />
 
+                {/* Groupe label : stopPropagation pour éviter le déclenchement du radar */}
+                <g
+                  onMouseDown={e => e.stopPropagation()}
+                  onTouchStart={e => e.stopPropagation()}
+                >
                 <rect
-                  x={lx - 130}
+                  x={lx - 105}
                   y={rectY}
-                  width={260}
+                  width={210}
                   height={rectH}
                   rx={6}
                   fill={bg}
                   opacity={0.95}
                 />
 
-                <text x={lx} y={ly - 6} fontSize={18} fontWeight={800} textAnchor="middle" fill="#64748b">
+                <text x={lx} y={titleY} fontSize={18} fontWeight={800} textAnchor="middle" fill="#64748b">
                   {a.label}
                 </text>
 
@@ -295,9 +306,9 @@ export function RadarChart({
                       {/* Fond de surbrillance si non renseigné */}
                       {isUntouched && (
                         <rect
-                          x={lx - 130}
+                          x={lx - 105}
                           y={rowY}
-                          width={260}
+                          width={210}
                           height={siRowH - 2}
                           rx={4}
                           fill="#fef9c3"
@@ -308,29 +319,36 @@ export function RadarChart({
                         const [line1, line2] = wrapLabel(si.label);
                         return (
                           <text
-                            x={lx - 128}
-                            fontSize={16}
+                            x={lx}
+                            fontSize={14}
                             fontWeight={700}
-                            textAnchor="start"
+                            textAnchor="middle"
                             fill={isUntouched ? "#92400e" : "#1e293b"}
                           >
-                            <tspan x={lx - 128} y={rowY + (line2 ? 16 : 26)}>{line1}</tspan>
-                            {line2 && <tspan x={lx - 128} dy={18}>{line2}</tspan>}
+                            <tspan x={lx} y={rowY + (line2 ? 11 : 16)}>{line1}</tspan>
+                            {line2 && <tspan x={lx} dy={14}>{line2}</tspan>}
                           </text>
                         );
                       })()}
                       {SI_STATUSES.map((targetStatus, ci) => {
                         const col = SI_COLORS[targetStatus];
                         const isSelected = currentStatus === targetStatus;
+                        const cx = lx - 24 + ci * 24;
+                        const cy = rowY + (wrapLabel(si.label)[1] ? 38 : 34);
                         return (
                           <g key={targetStatus}>
+                            {/* Halo blanc derrière le cercle sélectionné pour le faire ressortir */}
+                            {isSelected && (
+                              <circle cx={cx} cy={cy} r={14} fill="white" opacity={0.9} style={{ pointerEvents: "none" }} />
+                            )}
                             <circle
-                              cx={lx + 20 + ci * 26}
-                              cy={rowY + 25}
-                              r={10}
-                              fill={isSelected ? col.selected : col.unselected}
-                              stroke={col.stroke}
-                              strokeWidth={isSelected ? 2.5 : 1.5}
+                              cx={cx}
+                              cy={cy}
+                              r={isSelected ? 12 : 9}
+                              fill={isSelected ? col.selected : isUntouched ? col.selected : col.unselected}
+                              stroke={isSelected ? col.stroke : isUntouched ? col.stroke : "#94a3b8"}
+                              strokeWidth={isSelected ? 3 : isUntouched ? 1.5 : 1}
+                              opacity={isSelected ? 1 : isUntouched ? 0.75 : 0.35}
                               style={{ cursor: "pointer" }}
                               onMouseDown={e => e.stopPropagation()}
                               onTouchStart={e => { e.stopPropagation(); handleSiClick(a.id, si.id, targetStatus); }}
@@ -339,9 +357,9 @@ export function RadarChart({
                             {/* Pulsation sur le cercle non sélectionné quand rien n'est coché */}
                             {isUntouched && (
                               <circle
-                                cx={lx + 20 + ci * 26}
-                                cy={rowY + 25}
-                                r={10}
+                                cx={cx}
+                                cy={cy}
+                                r={8}
                                 fill="none"
                                 stroke={col.stroke}
                                 strokeWidth={2}
@@ -358,6 +376,7 @@ export function RadarChart({
                     </g>
                   );
                 })}
+                </g>{/* fin groupe label */}
               </g>
             );
           })}

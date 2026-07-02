@@ -209,6 +209,7 @@ export function App() {
       setPreExitNeeds({ students: needStudents, questions: needQuestions, duration: needDuration });
       setShowPreExitModal(true);
     } else {
+      form.resetEvaluatorSession();
       setIsCoordinator(false);
     }
   }, [form, bulkStudentsText, bulkGroupsText, bulkSinglesText]);

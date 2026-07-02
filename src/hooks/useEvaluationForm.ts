@@ -355,6 +355,20 @@ export function useEvaluationForm() {
     setLoadedEvaluation(null);
   }, [axes, resetScores, setDrawPersisted, timer]);
 
+  // Réinitialise toutes les données évaluateur (appelé à la sortie du mode admin)
+  const resetEvaluatorSession = useCallback(() => {
+    resetEvaluationForm();
+    setStudentData(prev => ({
+      ...prev,
+      civilite: "",
+      nom: "",
+      prenom: "",
+      questionNum: "",
+    }));
+    setLoadedStudentKey(null);
+    setSelectedSavedId("");
+  }, [resetEvaluationForm]);
+
   const saveCurrentEvaluation = useCallback(async () => {
     const now = new Date();
     const item: SavedEvaluation = {
@@ -767,6 +781,7 @@ export function useEvaluationForm() {
     // Actions
     resetScores,
     resetEvaluationForm,
+    resetEvaluatorSession,
     saveCurrentEvaluation,
     loadSavedEvaluation,
     handleStudentChange,

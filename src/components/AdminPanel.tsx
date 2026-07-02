@@ -666,6 +666,9 @@ export function AdminPanel({
                   }
                   className="w-20 rounded border px-2 py-1 text-sm"
                 />
+                <span className="w-14 text-center text-xs font-semibold text-blue-600">
+                  {axesMaxSum > 0 ? `${Math.round((a.max / axesMaxSum) * 100)} %` : "—"}
+                </span>
                 <Button
                   variant="danger"
                   size="sm"

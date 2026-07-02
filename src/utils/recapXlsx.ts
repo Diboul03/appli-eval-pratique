@@ -72,10 +72,10 @@ export async function buildRecapXlsxBuffer(savedEvaluations: SavedEvaluation[]):
 
     // Row 2 — UE title
     const titleRow = ws.addRow([ue, "", "", ""]);
-    titleRow.height = 24;
+    titleRow.height = 30;
     ws.mergeCells(`A${titleRow.number}:D${titleRow.number}`);
     const titleCell = titleRow.getCell(1);
-    titleCell.font = { bold: true, size: 13, color: { argb: "FF" + COLOR.white } };
+    titleCell.font = { bold: true, size: 16, color: { argb: "FF" + COLOR.white } };
     titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + COLOR.emerald } };
     titleCell.alignment = { horizontal: "center", vertical: "middle" };
     titleCell.border = borderAll;
@@ -83,10 +83,10 @@ export async function buildRecapXlsxBuffer(savedEvaluations: SavedEvaluation[]):
     // Row 3 — Date + promotion subtitle
     const subtitle = [fmtDate(date), promotion].filter(Boolean).join("   —   ");
     const subRow = ws.addRow([subtitle, "", "", ""]);
-    subRow.height = 16;
+    subRow.height = 20;
     ws.mergeCells(`A${subRow.number}:D${subRow.number}`);
     const subCell = subRow.getCell(1);
-    subCell.font = { italic: true, size: 10, color: { argb: "FF" + COLOR.white } };
+    subCell.font = { italic: true, size: 13, color: { argb: "FF" + COLOR.white } };
     subCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + COLOR.emeraldBg } };
     subCell.alignment = { horizontal: "center", vertical: "middle" };
     subCell.border = borderAll;
@@ -96,9 +96,9 @@ export async function buildRecapXlsxBuffer(savedEvaluations: SavedEvaluation[]):
 
     // Headers
     const headerRow = ws.addRow(["Nom", "Prénom", "Note / 20", "Durée réelle"]);
-    headerRow.height = 18;
+    headerRow.height = 22;
     headerRow.eachCell((c, ci) => {
-      c.font = { bold: true, size: 11, color: { argb: "FF" + COLOR.dark } };
+      c.font = { bold: true, size: 14, color: { argb: "FF" + COLOR.dark } };
       c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + COLOR.emeraldLight } };
       c.alignment = { horizontal: ci <= 2 ? "left" : "center", vertical: "middle" };
       c.border = borderTop;
@@ -113,15 +113,15 @@ export async function buildRecapXlsxBuffer(savedEvaluations: SavedEvaluation[]):
         parseFloat(ev.total20.toFixed(1)),
         fmtDuration(ev.evaluationDurationMs),
       ]);
-      dataRow.height = 16;
+      dataRow.height = 20;
       dataRow.eachCell((c, ci) => {
         c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + bg } };
         c.alignment = { horizontal: ci <= 2 ? "left" : "center", vertical: "middle" };
         c.border = borderAll;
         if (ci === 3) {
-          c.font = { bold: true, size: 11, color: { argb: ev.total20 >= 10 ? "FF047857" : "FFB91C1C" } };
+          c.font = { bold: true, size: 13, color: { argb: ev.total20 >= 10 ? "FF047857" : "FFB91C1C" } };
         } else {
-          c.font = { size: 11 };
+          c.font = { size: 13 };
         }
       });
     });
@@ -134,9 +134,9 @@ export async function buildRecapXlsxBuffer(savedEvaluations: SavedEvaluation[]):
       `Moy. ${avg} / 20`,
       "",
     ]);
-    footerRow.height = 16;
+    footerRow.height = 20;
     footerRow.eachCell(c => {
-      c.font = { bold: true, italic: true, size: 10, color: { argb: "FF" + COLOR.greyText } };
+      c.font = { bold: true, italic: true, size: 13, color: { argb: "FF" + COLOR.greyText } };
       c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + COLOR.grey } };
       c.alignment = { horizontal: "center", vertical: "middle" };
       c.border = borderFoot;
