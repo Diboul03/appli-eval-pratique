@@ -19,7 +19,7 @@ export function RemarksStep({
   return (
     <>
       <h3 className="mb-2 flex items-center gap-2 text-sm font-extrabold uppercase text-slate-500">
-        <MessageSquareMore size={16} /> Étape 4 — Commentaires (obligatoire)
+        <MessageSquareMore size={16} /> Commentaires (obligatoire)
       </h3>
       <div className="grid gap-4 md:grid-cols-2">
         <div>

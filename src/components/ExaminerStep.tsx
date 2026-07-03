@@ -10,7 +10,7 @@ export function ExaminerStep({ evaluatorFullName, total20, showFinalNote }: Exam
   return (
     <>
       <h3 className="mb-2 flex items-center gap-1 text-xs font-extrabold uppercase text-slate-500">
-        <UserCircle size={14} /> Étape 1 — Formateur évaluateur
+        <UserCircle size={14} /> Formateur évaluateur
       </h3>
       <input
         readOnly

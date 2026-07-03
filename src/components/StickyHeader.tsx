@@ -3,6 +3,14 @@ import { RefreshCw, Shuffle } from "lucide-react";
 import { useDialogs } from "./Dialogs";
 import { Button } from "./Button";
 
+const STEP_LABELS: Record<number, string> = {
+  1: "Étudiant",
+  2: "Tirage au sort",
+  3: "Évaluation",
+  4: "Commentaires",
+  5: "Signature",
+};
+
 interface StickyHeaderProps {
   isCoordinator: boolean;
   hasSelectedStudent: boolean;
@@ -13,17 +21,18 @@ interface StickyHeaderProps {
   drawPersisted: DrawPersisted | null;
   onDrawQuestion: () => void;
   onResetEvaluation: () => void;
+  onResetAndRedraw: () => void;
   examDurationMinutes: number;
   elapsedMs: number;
   remainingMs: number;
   isOvertime: boolean;
   isTimerRunning: boolean;
   onStartTimer: () => void;
+  evalStep: number;
 }
 
 export function StickyHeader({
   isCoordinator,
-  hasSelectedStudent,
   studentData,
   studentsEvaluatedCount,
   totalStudentsCount,
@@ -31,16 +40,18 @@ export function StickyHeader({
   drawPersisted,
   onDrawQuestion,
   onResetEvaluation,
+  onResetAndRedraw,
   examDurationMinutes,
   elapsedMs,
   remainingMs,
   isOvertime,
   isTimerRunning,
   onStartTimer,
+  evalStep,
 }: StickyHeaderProps) {
   const { confirm } = useDialogs();
 
-  if (isCoordinator || !hasSelectedStudent) return null;
+  if (isCoordinator || evalStep < 2) return null;
 
   const formatMs = (ms: number) => {
     const isNegative = ms < 0;
@@ -78,13 +89,27 @@ export function StickyHeader({
     >
       <div className="mx-auto flex w-full flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span className="text-xl font-black tracking-tight">
-            {studentData.civilite ? `${studentData.civilite} ` : ""}
-            {studentData.nom} {studentData.prenom}
-          </span>
-          <span className="text-sm font-semibold text-indigo-100/90">
-            ({studentsEvaluatedCount}/{totalStudentsCount} évalués)
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/25 text-sm font-black">
+              {evalStep}
+            </span>
+            <div className="flex flex-col leading-tight">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-white/70">Étape {evalStep}/5</span>
+              <span className="text-sm font-extrabold">{STEP_LABELS[evalStep] ?? ""}</span>
+            </div>
+          </div>
+          <div className="h-6 w-px bg-white/30" />
+          <div className="flex flex-col leading-tight">
+            <span className="text-xs font-semibold text-white/80">
+              {studentData.civilite ? `${studentData.civilite} ` : ""}
+              {studentData.nom} {studentData.prenom}
+            </span>
+            <span className="text-[10px] text-white/60">
+              {studentData.ue && <span>{studentData.ue}</span>}
+              {studentData.ue && totalStudentsCount > 0 && <span className="mx-1">·</span>}
+              {totalStudentsCount > 0 && <span>{studentsEvaluatedCount}/{totalStudentsCount} évalués</span>}
+            </span>
+          </div>
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center gap-1">
@@ -149,12 +174,16 @@ export function StickyHeader({
               onClick={async () => {
                 const ok = await confirm({
                   title: "Réinitialiser l'évaluation ?",
-                  message:
-                    "Toutes les notes, remarques et la signature de l'évaluation en cours seront effacées.",
+                  message: drawEnabled
+                    ? "L'évaluation en cours sera effacée, un nouveau tirage sera effectué et le chrono redémarre."
+                    : "Toutes les notes, remarques et la signature de l'évaluation en cours seront effacées.",
                   confirmLabel: "Réinitialiser",
                   danger: true,
                 });
-                if (ok) onResetEvaluation();
+                if (ok) {
+                  if (drawEnabled) onResetAndRedraw();
+                  else onResetEvaluation();
+                }
               }}
               className="bg-white/20 text-white hover:bg-red-500"
             >

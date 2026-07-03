@@ -1,6 +1,6 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PenTool, HelpCircle, Settings, CheckCircle2, AlertTriangle, XCircle, Target, PenLine, Download, Upload, KeyRound, TableIcon } from "lucide-react";
+import { PenTool, HelpCircle, Settings, AlertTriangle, Target, Download, Upload, KeyRound, TableIcon } from "lucide-react";
 import { useEvaluationForm, formatDurationMs } from "./hooks/useEvaluationForm";
 import { Modal } from "./components/Modal";
 import { Button } from "./components/Button";
@@ -15,6 +15,7 @@ import { DashboardModal } from "./components/DashboardModal";
 import { RadarChart } from "./components/RadarChart";
 import { ContextHelp } from "./components/ContextHelp";
 import { AdminPanel } from "./components/AdminPanel";
+import { BddPanel } from "./components/BddPanel";
 import { RecapTable } from "./components/RecapTable";
 import { useEvaluationStats } from "./hooks/useEvaluationStats";
 import { buildEvaluationsHtml } from "./utils/evaluations";
@@ -29,7 +30,8 @@ export function App() {
 
   const [showHelp, setShowHelp] = useState(false);
   const [isCoordinator, setIsCoordinator] = useState(false);
-  const [adminView, setAdminView] = useState<"config" | "preview" | "recap">("config");
+  const [adminView, setAdminView] = useState<"config" | "preview" | "recap" | "bdd">("config");
+  const [bddTestTrigger, setBddTestTrigger] = useState(0);
   const [showCoordModal, setShowCoordModal] = useState(false);
   const [coordCode, setCoordCode] = useState("");
   const [coordError, setCoordError] = useState("");
@@ -38,8 +40,7 @@ export function App() {
     { students: false, questions: false, duration: false },
   );
 
-  const [showDrawModal, setShowDrawModal] = useState(false);
-  const [drawResult, setDrawResult] = useState<DrawPersisted | null>(null);
+  const [evalStep, setEvalStep] = useState<1 | 2 | 3 | 4 | 5>(1);
 
   const [isSaving, setIsSaving] = useState(false);
   const restoreInputRef = useRef<HTMLInputElement | null>(null);
@@ -48,11 +49,6 @@ export function App() {
   const [bulkGroupsText, setBulkGroupsText] = useState("");
   const [bulkSinglesText, setBulkSinglesText] = useState("");
 
-  const step1Ref = useRef<HTMLDivElement | null>(null);
-  const step2Ref = useRef<HTMLDivElement | null>(null);
-  const step3Ref = useRef<HTMLDivElement | null>(null);
-  const step4Ref = useRef<HTMLDivElement | null>(null);
-  const signatureSectionRef = useRef<HTMLDivElement | null>(null);
   const studentsSectionRef = useRef<HTMLDivElement | null>(null);
   const questionsSectionRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -75,11 +71,20 @@ export function App() {
   const [passwordChangeError, setPasswordChangeError] = useState("");
 
 
+
+  // Retour étape 1 quand l'étudiant est désélectionné/réinitialisé
   useEffect(() => {
-    if (!showDrawModal) return;
-    const timer = window.setTimeout(() => setShowDrawModal(false), 4000);
-    return () => window.clearTimeout(timer);
-  }, [showDrawModal]);
+    if (!form.hasSelectedStudent && !isCoordinator) setEvalStep(1);
+  }, [form.hasSelectedStudent, isCoordinator]);
+
+  // Auto-avance quand l'étudiant est sélectionné à l'étape 1
+  useEffect(() => {
+    if (form.hasSelectedStudent && evalStep === 1 && !isCoordinator) {
+      if (form.drawEnabled) doDraw(false); // tirage sans démarrer le chrono
+      setEvalStep(2); // toujours passer à l'étape 2 (chrono démarre sur "Commencer")
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.hasSelectedStudent]);
 
   useEffect(() => {
     if (form.signatureImage) {
@@ -151,7 +156,7 @@ export function App() {
     form.setSignatureImage(null);
   };
 
-  const doDraw = useCallback(() => {
+  const doDraw = useCallback((startTimer = true) => {
     if (!form.drawEnabled) {
       notify("Le tirage au sort est désactivé.", "error");
       return;
@@ -172,10 +177,8 @@ export function App() {
       const chosen = filtered[Math.floor(Math.random() * filtered.length)];
       const payload: DrawPersisted = { mode: "group", group: chosen.group };
       lastDrawSignatureRef.current = chosen.signature;
-      setDrawResult(payload);
       form.setDrawPersisted(payload);
-      setShowDrawModal(true);
-      if (form.examDurationMinutes > 0) form.timer.start();
+      if (startTimer && form.examDurationMinutes > 0) form.timer.start();
     } else {
       const list = form.drawSingles.filter(q => q.trim());
       if (list.length === 0) { notify("Aucune question unique disponible.", "error"); return; }
@@ -188,10 +191,8 @@ export function App() {
       const chosen = filtered[Math.floor(Math.random() * filtered.length)];
       const payload: DrawPersisted = { mode: "single", question: chosen.question };
       lastDrawSignatureRef.current = chosen.signature;
-      setDrawResult(payload);
       form.setDrawPersisted(payload);
-      setShowDrawModal(true);
-      if (form.examDurationMinutes > 0) form.timer.start();
+      if (startTimer && form.examDurationMinutes > 0) form.timer.start();
     }
   }, [form, notify]);
 
@@ -360,12 +361,14 @@ export function App() {
         drawPersisted={form.drawPersisted}
         onDrawQuestion={doDraw}
         onResetEvaluation={handleResetEvaluation}
+        onResetAndRedraw={() => { handleResetEvaluation(); form.timer.reset(); doDraw(false); setEvalStep(2); }}
         examDurationMinutes={form.examDurationMinutes}
         elapsedMs={form.timer.elapsedMs}
         remainingMs={form.timer.remainingMs}
         isOvertime={form.timer.isOvertime}
         isTimerRunning={form.timer.isRunning}
         onStartTimer={form.timer.start}
+        evalStep={evalStep}
       />
 
       <div className="p-2 md:p-6">
@@ -374,12 +377,15 @@ export function App() {
           className="mx-auto max-w-6xl overflow-hidden rounded-2xl bg-stone-50 shadow-2xl print:shadow-none"
         >
           <div className="border-b-4 border-emerald-300 bg-emerald-100 p-4 text-slate-800 md:p-6">
-            <div className="mb-3 flex justify-center">
+            <div className="mb-3 flex items-center justify-between">
               <img
                 src={logoDataUri}
                 alt="Logo IFSO Vichy Clermont-FD"
                 className="h-12 w-auto md:h-14"
               />
+              <span className="inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wide border-emerald-400 bg-emerald-200 text-emerald-900">
+                {isCoordinator ? "Mode administrateur" : "Mode évaluateur"}
+              </span>
             </div>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between">
               <div className="mb-3 text-center md:mb-0 md:text-left">
@@ -406,11 +412,8 @@ export function App() {
 
                 <div className="hidden flex-col items-end gap-2 md:flex">
 
-                  {/* Ligne 1 : statut + aide + quitter */}
+                  {/* Ligne 1 : aide + quitter */}
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wide border-emerald-400 bg-emerald-200 text-emerald-900">
-                      {isCoordinator ? "Mode administrateur" : "Mode évaluateur"}
-                    </span>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -529,6 +532,7 @@ export function App() {
                             if (form.selectedSavedId) {
                               form.loadSavedEvaluation(form.selectedSavedId);
                               clearCanvasSignature();
+                              setEvalStep(3);
                             }
                           }}
                         >
@@ -588,6 +592,7 @@ export function App() {
                       if (form.selectedSavedId) {
                         form.loadSavedEvaluation(form.selectedSavedId);
                         clearCanvasSignature();
+                        setEvalStep(3);
                       }
                     }}
                   >
@@ -604,40 +609,65 @@ export function App() {
             <>
               {isCoordinator && (
                 <>
-                  <div className="flex gap-2 border-b border-amber-200 bg-amber-50/60 px-6 pt-4">
-                    <button
-                      type="button"
-                      onClick={() => setAdminView("config")}
-                      className={`rounded-t-lg px-4 py-2 text-xs font-bold uppercase tracking-wide ${
-                        adminView === "config"
-                          ? "border border-b-0 border-amber-300 bg-white text-amber-900"
-                          : "text-amber-700 hover:bg-amber-100"
-                      }`}
-                    >
-                      Configuration
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAdminView("preview")}
-                      className={`rounded-t-lg px-4 py-2 text-xs font-bold uppercase tracking-wide ${
-                        adminView === "preview"
-                          ? "border border-b-0 border-amber-300 bg-white text-amber-900"
-                          : "text-amber-700 hover:bg-amber-100"
-                      }`}
-                    >
-                      Aperçu évaluateur
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAdminView("recap")}
-                      className={`rounded-t-lg px-4 py-2 text-xs font-bold uppercase tracking-wide ${
-                        adminView === "recap"
-                          ? "border border-b-0 border-amber-300 bg-white text-amber-900"
-                          : "text-amber-700 hover:bg-amber-100"
-                      }`}
-                    >
-                      Tableau récapitulatif des notes
-                    </button>
+                  <div className="flex gap-1 border-b-2 border-amber-300 bg-amber-100 px-4 pt-3">
+                    {(
+                      [
+                        { key: "config",  label: "Configuration" },
+                        { key: "preview", label: "Aperçu évaluateur" },
+                        { key: "recap",   label: "Récapitulatif des notes" },
+                        { key: "bdd",     label: "Création BDD" },
+                      ] as const
+                    ).map(({ key, label }) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setAdminView(key)}
+                        className={`rounded-t-lg px-4 py-2 text-xs font-extrabold uppercase tracking-wide transition-all ${
+                          adminView === key
+                            ? "border-2 border-b-0 border-amber-400 bg-white text-amber-900 shadow-sm"
+                            : "border-2 border-transparent bg-amber-200/70 text-amber-800 hover:bg-amber-200 hover:text-amber-900"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+
+                    {/* Bouton remplissage test */}
+                    <div className="ml-auto flex items-end pb-1">
+                      <Button
+                        variant="neutral"
+                        size="sm"
+                        onClick={() => {
+                          const testStudents = [
+                            { civilite: "M.", nom: "MARTIN", prenom: "Lucas" },
+                            { civilite: "Mme", nom: "DUPONT", prenom: "Sophie" },
+                            { civilite: "M.", nom: "BERNARD", prenom: "Nathan" },
+                            { civilite: "Mme", nom: "LEROY", prenom: "Emma" },
+                            { civilite: "M.", nom: "MOREAU", prenom: "Arthur" },
+                          ];
+                          form.setDefaultExaminer({ nom: "DUPUIS", prenom: "Marie" });
+                          form.setStudentData(prev => ({ ...prev, ue: "UE Kinésithérapie — Bilan articulaire", promotion: "Promotion 2024-2026" }));
+                          window.localStorage.setItem("uePreset", JSON.stringify("UE Kinésithérapie — Bilan articulaire"));
+                          window.localStorage.setItem("promotionPreset", JSON.stringify("Promotion 2024-2026"));
+                          form.setStudentList(testStudents);
+                          form.setStudentListValidated(true);
+                          form.setDrawEnabled(true);
+                          form.setDrawMode("group");
+                          form.setDrawGroups([
+                            { id: "test-g1", title: "Bilan articulaire", questions: ["Décrire le bilan de l'épaule", "Mesurer la flexion du genou en DD", "Bilan de la cheville post-entorse"] },
+                            { id: "test-g2", title: "Bilan musculaire", questions: ["Testing du quadriceps", "Évaluation des rotateurs de hanche", "Testing des fléchisseurs plantaires"] },
+                            { id: "test-g3", title: "Raisonnement clinique", questions: ["Proposer un diagnostic kiné", "Justifier le choix des techniques", "Identifier les contre-indications"] },
+                          ]);
+                          form.setDrawListValidated(true);
+                          form.setExamDurationMinutes(15);
+                          setBddTestTrigger(t => t + 1);
+                          notify("Données de test chargées (5 étudiants, 3 groupes de questions, 15 min).", "success");
+                        }}
+                        className="border border-amber-400 bg-amber-100 text-amber-900 hover:bg-amber-200 text-[11px] font-bold uppercase"
+                      >
+                        🧪 Remplir test
+                      </Button>
+                    </div>
                   </div>
 
                   {adminView === "config" && (
@@ -689,269 +719,346 @@ export function App() {
                   {adminView === "recap" && (
                     <RecapTable savedEvaluations={form.savedEvaluations} />
                   )}
+
+                  {adminView === "bdd" && (
+                    <BddPanel
+                      studentList={form.studentList}
+                      defaultExaminer={form.defaultExaminer}
+                      examDurationMinutes={form.examDurationMinutes}
+                      ue={form.studentData.ue}
+                      promotion={form.studentData.promotion}
+                      testTrigger={bddTestTrigger}
+                    />
+                  )}
                 </>
               )}
 
               {(!isCoordinator || adminView === "preview") && (
               <>
-              <div className="border-b border-slate-100 bg-slate-50/80 px-6 pt-4 pb-2">
-                <ol className="flex flex-wrap items-center gap-3 text-[11px] font-semibold text-slate-500">
-                  {[
-                    { id: 1, label: "Formateur évaluateur", done: Boolean(form.studentData.evaluatorNom || form.studentData.evaluatorPrenom) },
-                    { id: 2, label: "Étudiant & UE", done: form.hasSelectedStudent },
-                    { id: 3, label: "Évaluation", done: form.someAxesTouched },
-                    { id: 4, label: "Commentaires", done: form.commentsReady },
-                    { id: 5, label: "Signature", done: Boolean(form.signatureImage) },
-                  ].map(step => (
-                    <li key={step.id} className="flex items-center gap-1">
-                      <span
-                        className={`flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-bold ${
-                          step.done
-                            ? "border-emerald-500 bg-emerald-500 text-white"
-                            : "border-slate-300 bg-white text-slate-500"
-                        }`}
-                      >
-                        {step.id}
-                      </span>
-                      <span className={step.done ? "text-slate-700" : "text-slate-400"}>
-                        {step.label}
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-                <div className="mt-1 flex flex-wrap items-center gap-3 text-[10px] text-slate-500">
-                  <span className="inline-flex items-center gap-1">
-                    {form.touchedCount === form.axes.length ? (
-                      <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-                    ) : form.touchedCount > 0 ? (
-                      <AlertTriangle className="h-3 w-3 text-amber-500" />
-                    ) : (
-                      <XCircle className="h-3 w-3 text-slate-400" />
-                    )}
-                    <span>Axes ajustés : {form.touchedCount}/{form.axes.length}</span>
-                  </span>
 
-                  {form.totalSubItems > 0 && (
-                    <span className="inline-flex items-center gap-1">
-                      {form.completedSubItems === form.totalSubItems ? (
-                        <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-                      ) : form.completedSubItems > 0 ? (
-                        <AlertTriangle className="h-3 w-3 text-amber-500" />
-                      ) : (
-                        <XCircle className="h-3 w-3 text-slate-400" />
-                      )}
-                      <span>Sous-indicateurs renseignés : {form.completedSubItems}/{form.totalSubItems}</span>
-                    </span>
+              {/* ── ÉTAPE 1 : Sélection étudiant ── */}
+              {evalStep === 1 && (
+                <div className="mx-auto max-w-2xl px-6 py-10 space-y-6">
+                  <StudentStep
+                    selectedStudentValue={form.selectedStudentValue}
+                    onStudentChange={form.handleStudentChange}
+                    studentData={form.studentData}
+                    onDateChange={v => form.setStudentData(prev => ({ ...prev, date: v }))}
+                    studentList={form.studentList}
+                    loadedStudentKey={form.loadedStudentKey}
+                    savedEvaluations={form.savedEvaluations}
+                  />
+                  <ExaminerStep
+                    evaluatorFullName={`${form.studentData.evaluatorNom} ${form.studentData.evaluatorPrenom}`.trim()}
+                    total20={form.total20}
+                    showFinalNote={(isCoordinator && adminView !== "preview") || form.showFinalNoteToEvaluator}
+                  />
+                  <p className="text-center text-xs text-slate-400 italic pt-2">
+                    La sélection d'un étudiant démarre automatiquement l'évaluation.
+                  </p>
+                </div>
+              )}
+
+              {/* ── ÉTAPE 2 : Question / Énoncé ── */}
+              {evalStep === 2 && (
+                <div className="mx-auto max-w-2xl px-6 py-10 space-y-6 text-center">
+                  {form.studentData.ue && (
+                    <p className="text-xs font-black uppercase tracking-widest text-slate-400">{form.studentData.ue}</p>
+                  )}
+                  {form.drawEnabled && form.drawPersisted ? (
+                    <>
+                      <h2 className="text-xl font-black uppercase tracking-wide text-slate-700">
+                        Question tirée au sort
+                      </h2>
+                      <div className="rounded-2xl border-2 border-indigo-300 bg-indigo-50 p-8 text-left shadow-lg">
+                        {form.drawPersisted.mode === "group" ? (
+                          <>
+                            <div className="mb-4 text-lg font-extrabold uppercase text-indigo-700">
+                              {form.drawPersisted.group.title}
+                            </div>
+                            <ul className="ml-6 list-disc space-y-2">
+                              {form.drawPersisted.group.questions.map((q, i) => (
+                                <li key={i} className="text-base font-semibold text-indigo-900">{q}</li>
+                              ))}
+                            </ul>
+                          </>
+                        ) : (
+                          <div className="text-xl font-extrabold text-indigo-900">
+                            {form.drawPersisted.question}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <h2 className="text-xl font-black uppercase tracking-wide text-slate-700">
+                        Énoncé de l'épreuve
+                      </h2>
+                      <div className="rounded-2xl border-2 border-slate-200 bg-slate-50 p-10 text-center shadow-lg">
+                        <p className="text-lg font-semibold text-slate-600">
+                          Vous pouvez énoncer la ou les questions à l'étudiant.
+                        </p>
+                      </div>
+                    </>
                   )}
 
-                  <span className="inline-flex items-center gap-1">
-                    {form.commentsReady ? (
-                      <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-                    ) : (
-                      <AlertTriangle className="h-3 w-3 text-amber-500" />
-                    )}
-                    <span>Commentaires : {form.commentsReady ? "renseignés" : "à compléter"}</span>
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-0 lg:grid-cols-12">
-                <div className="border-r border-stone-200 bg-emerald-50/40 p-6 lg:col-span-5">
-                  <div ref={step1Ref}>
-                    <ExaminerStep
-                      evaluatorFullName={`${form.studentData.evaluatorNom} ${form.studentData.evaluatorPrenom}`.trim()}
-                      total20={form.total20}
-                      showFinalNote={(isCoordinator && adminView !== "preview") || form.showFinalNoteToEvaluator}
-                    />
+                  <div className="flex justify-between pt-4">
+                    <Button variant="ghost" onClick={() => setEvalStep(1)}>← Retour</Button>
+                    <div className="flex gap-2">
+                      {form.drawEnabled && (
+                        <Button
+                          variant="neutral"
+                          onClick={() => { form.timer.reset(); doDraw(false); }}
+                        >
+                          ↺ Nouveau tirage
+                        </Button>
+                      )}
+                      <Button
+                        variant="primary"
+                        onClick={() => {
+                          if (form.examDurationMinutes > 0) form.timer.start();
+                          setEvalStep(3);
+                        }}
+                      >
+                        Commencer l'évaluation →
+                      </Button>
+                    </div>
                   </div>
                 </div>
+              )}
 
-                <div className="p-6 lg:col-span-7">
-                  <div ref={step2Ref}>
-                    <StudentStep
-                      selectedStudentValue={form.selectedStudentValue}
-                      onStudentChange={form.handleStudentChange}
-                      studentData={form.studentData}
-                      onDateChange={v => form.setStudentData(prev => ({ ...prev, date: v }))}
-                      studentList={form.studentList}
-                      loadedStudentKey={form.loadedStudentKey}
-                      savedEvaluations={form.savedEvaluations}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div ref={step3Ref} className="p-6">
-                {form.loadedStudentKey && (
-                  <div className="mb-4 flex items-center justify-between rounded-xl border border-amber-300 bg-amber-50 p-3">
-                    <div>
-                      <div className="text-xs font-extrabold uppercase text-amber-900">Évaluation chargée</div>
-                      <div className="text-sm font-semibold">
-                        {form.studentData.civilite ? `${form.studentData.civilite} ` : ""}
-                        {form.studentData.nom} {form.studentData.prenom}
+              {/* ── ÉTAPE 3 : Radar & sous-indicateurs ── */}
+              {evalStep === 3 && (
+                <div className="px-6 py-6">
+                  {form.loadedStudentKey && (
+                    <div className="mb-4 flex items-center justify-between rounded-xl border border-amber-300 bg-amber-50 p-3">
+                      <div>
+                        <div className="text-xs font-extrabold uppercase text-amber-900">Évaluation chargée</div>
+                        <div className="text-sm font-semibold">
+                          {form.studentData.civilite ? `${form.studentData.civilite} ` : ""}
+                          {form.studentData.nom} {form.studentData.prenom}
+                        </div>
                       </div>
+                      <span className="rounded-full border border-amber-200 bg-white px-2 py-1 text-[10px] font-bold uppercase text-amber-800">
+                        Modification
+                      </span>
                     </div>
-                    <span className="rounded-full border border-amber-200 bg-white px-2 py-1 text-[10px] font-bold uppercase text-amber-800">
-                      Modification
-                    </span>
+                  )}
+
+                  <h3 className="mb-2 flex items-center gap-2 text-sm font-extrabold uppercase text-slate-500">
+                    <Target size={16} /> Évaluation
+                    <ContextHelp
+                      title="Aide radar"
+                      lines={[
+                        "Cliquez près d'un axe puis faites glisser pour ajuster la note.",
+                        "Tous les axes doivent être modifiés au moins une fois pour permettre la signature.",
+                      ]}
+                    />
+                  </h3>
+
+                  <h3 className="mb-2 flex items-center gap-2 text-sm font-extrabold uppercase text-slate-500">
+                    <PenTool size={16} /> Indicateurs
+                    <ContextHelp
+                      title="Aide sous-indicateurs"
+                      lines={[
+                        "Choisissez un statut pour chaque sous-indicateur : acquis, en cours ou non acquis.",
+                        "Pour 'En cours' ou 'Non acquis', un commentaire est obligatoire.",
+                      ]}
+                    />
+                  </h3>
+
+                  <div className="mb-4">
+                    <RadarChart
+                      axes={form.axes}
+                      scores={form.scores}
+                      setScores={form.setScores}
+                      setTouched={form.setTouched}
+                      touched={form.touched}
+                      axesMaxSum={form.axesMaxSum}
+                      showBareme={(isCoordinator && adminView !== "preview") || form.showBaremeToEvaluator}
+                      showPercent={(isCoordinator && adminView !== "preview") || form.showPercentToEvaluator}
+                      subChecks={form.subChecks}
+                      setSubChecks={form.setSubChecks}
+                    />
                   </div>
-                )}
 
-                <h3 className="mb-1 flex items-center gap-2 text-sm font-extrabold uppercase text-slate-500">
-                  <Target size={16} /> Étape 3 — Évaluation
-                  <ContextHelp
-                    title="Aide radar"
-                    lines={[
-                      "Cliquez près d'un axe puis faites glisser pour ajuster la note.",
-                      "Tous les axes doivent être modifiés au moins une fois pour permettre la signature.",
-                    ]}
-                  />
-                </h3>
-
-                {form.drawEnabled && form.drawPersisted && (
-                  <div className="mb-3 rounded-lg border border-indigo-300 bg-indigo-50 p-4 text-indigo-900">
-                    {form.drawPersisted.mode === "group" ? (
-                      <>
-                        <div className="mb-2 font-extrabold uppercase">{form.drawPersisted.group.title}</div>
-                        <ul className="ml-6 list-disc">
-                          {form.drawPersisted.group.questions.map((q, i) => (
-                            <li key={i}>{q}</li>
-                          ))}
-                        </ul>
-                      </>
-                    ) : (
-                      <div className="font-extrabold">{form.drawPersisted.question}</div>
-                    )}
-                  </div>
-                )}
-
-                <h3 className="mb-2 flex items-center gap-2 text-sm font-extrabold uppercase text-slate-500">
-                  <PenTool size={16} /> Indicateurs
-                  <ContextHelp
-                    title="Aide sous-indicateurs"
-                    lines={[
-                      "Choisissez un statut pour chaque sous-indicateur : acquis, en cours ou non acquis.",
-                      "Pour 'En cours' ou 'Non acquis', un commentaire est obligatoire.",
-                    ]}
-                  />
-                </h3>
-
-                <div className="mt-2 mb-4">
-                  <RadarChart
-                    axes={form.axes}
-                    scores={form.scores}
-                    setScores={form.setScores}
-                    setTouched={form.setTouched}
-                    touched={form.touched}
-                    axesMaxSum={form.axesMaxSum}
-                    showBareme={(isCoordinator && adminView !== "preview") || form.showBaremeToEvaluator}
-                    showPercent={(isCoordinator && adminView !== "preview") || form.showPercentToEvaluator}
-                    subChecks={form.subChecks}
-                    setSubChecks={form.setSubChecks}
-                  />
-                </div>
-
-                {/* Commentaires obligatoires : uniquement si un sous-indicateur est EN_COURS ou NON_ACQUIS */}
-                {form.axes.some(axis =>
-                  (axis.subItems || []).some(si => {
-                    const st = form.subChecks[axis.id]?.[si.id] ?? "";
-                    return st === "NON_ACQUIS" || st === "EN_COURS";
-                  })
-                ) && (
-                  <div className="mb-4 space-y-3">
-                    <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
-                      <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-amber-600" />
-                      <p className="text-xs font-semibold text-amber-800">
-                        Un ou plusieurs sous-indicateurs sont cochés <span className="font-bold">"En cours d'acquisition"</span> ou <span className="font-bold">"Non acquis"</span>. Vous devez rédiger un commentaire par indicateur concerné ci-dessous avant de pouvoir signer.
-                      </p>
-                    </div>
-                    {form.axes
-                      .filter(axis =>
-                        (axis.subItems || []).some(si => {
-                          const st = form.subChecks[axis.id]?.[si.id] ?? "";
-                          return st === "NON_ACQUIS" || st === "EN_COURS";
-                        })
-                      )
-                      .map(axis => {
-                        const axisComment = form.subComments[axis.id]?.["__axis__"] ?? "";
-                        const triggeringItems = (axis.subItems || []).filter(si => {
-                          const st = form.subChecks[axis.id]?.[si.id] ?? "";
-                          return st === "NON_ACQUIS" || st === "EN_COURS";
-                        });
-                        return (
-                          <div key={axis.id} className={`rounded-xl border-2 p-3 shadow-sm ${axisComment.trim() ? "border-slate-300 bg-white" : "border-red-400 bg-red-50"}`}>
-                            <div className="mb-2 flex items-start gap-2">
-                              <AlertTriangle size={15} className={`mt-0.5 flex-shrink-0 ${axisComment.trim() ? "text-slate-400" : "text-red-500"}`} />
-                              <div>
-                                <div className={`text-sm font-extrabold uppercase ${axisComment.trim() ? "text-slate-600" : "text-red-700"}`}>
-                                  {axis.label}
-                                </div>
-                                <div className="mt-0.5 space-y-0.5">
-                                  {triggeringItems.map(si => {
-                                    const st = form.subChecks[axis.id]?.[si.id] ?? "";
-                                    return (
-                                      <div key={si.id} className="flex items-center gap-1.5 text-[11px] font-semibold">
-                                        <span className={`inline-block h-2.5 w-2.5 rounded-full flex-shrink-0 ${st === "NON_ACQUIS" ? "bg-red-500" : "bg-amber-400"}`} />
-                                        <span className="text-slate-700">{si.label}</span>
-                                        <span className={`font-bold ${st === "NON_ACQUIS" ? "text-red-600" : "text-amber-600"}`}>
-                                          — {st === "NON_ACQUIS" ? "Non acquis" : "En cours d'acquisition"}
-                                        </span>
-                                      </div>
-                                    );
-                                  })}
+                  {/* Commentaires obligatoires sous-indicateurs */}
+                  {form.axes.some(axis =>
+                    (axis.subItems || []).some(si => {
+                      const st = form.subChecks[axis.id]?.[si.id] ?? "";
+                      return st === "NON_ACQUIS" || st === "EN_COURS";
+                    })
+                  ) && (
+                    <div className="mb-4 space-y-3">
+                      <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
+                        <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-amber-600" />
+                        <p className="text-xs font-semibold text-amber-800">
+                          Un ou plusieurs sous-indicateurs sont cochés <span className="font-bold">"En cours d'acquisition"</span> ou <span className="font-bold">"Non acquis"</span>. Vous devez rédiger un commentaire par indicateur concerné ci-dessous avant de pouvoir signer.
+                        </p>
+                      </div>
+                      {form.axes
+                        .filter(axis =>
+                          (axis.subItems || []).some(si => {
+                            const st = form.subChecks[axis.id]?.[si.id] ?? "";
+                            return st === "NON_ACQUIS" || st === "EN_COURS";
+                          })
+                        )
+                        .map(axis => {
+                          const axisComment = form.subComments[axis.id]?.["__axis__"] ?? "";
+                          const triggeringItems = (axis.subItems || []).filter(si => {
+                            const st = form.subChecks[axis.id]?.[si.id] ?? "";
+                            return st === "NON_ACQUIS" || st === "EN_COURS";
+                          });
+                          return (
+                            <div key={axis.id} className={`rounded-xl border-2 p-3 shadow-sm ${axisComment.trim() ? "border-slate-300 bg-white" : "border-red-400 bg-red-50"}`}>
+                              <div className="mb-2 flex items-start gap-2">
+                                <AlertTriangle size={15} className={`mt-0.5 flex-shrink-0 ${axisComment.trim() ? "text-slate-400" : "text-red-500"}`} />
+                                <div>
+                                  <div className={`text-sm font-extrabold uppercase ${axisComment.trim() ? "text-slate-600" : "text-red-700"}`}>
+                                    {axis.label}
+                                  </div>
+                                  <div className="mt-0.5 space-y-0.5">
+                                    {triggeringItems.map(si => {
+                                      const st = form.subChecks[axis.id]?.[si.id] ?? "";
+                                      return (
+                                        <div key={si.id} className="flex items-center gap-1.5 text-[11px] font-semibold">
+                                          <span className={`inline-block h-2.5 w-2.5 rounded-full flex-shrink-0 ${st === "NON_ACQUIS" ? "bg-red-500" : "bg-amber-400"}`} />
+                                          <span className="text-slate-700">{si.label}</span>
+                                          <span className={`font-bold ${st === "NON_ACQUIS" ? "text-red-600" : "text-amber-600"}`}>
+                                            — {st === "NON_ACQUIS" ? "Non acquis" : "En cours d'acquisition"}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
                               </div>
+                              <textarea
+                                rows={3}
+                                value={axisComment}
+                                onChange={e =>
+                                  form.setSubComments(prev => ({
+                                    ...prev,
+                                    [axis.id]: { ...prev[axis.id], ["__axis__"]: e.target.value },
+                                  }))
+                                }
+                                placeholder={`Expliquez ici pourquoi ce sous-indicateur est ${triggeringItems.some(s => form.subChecks[axis.id]?.[s.id] === "NON_ACQUIS") ? "non acquis" : "en cours d'acquisition"}…`}
+                                className={`w-full rounded-lg border-2 px-3 py-2 text-sm ${
+                                  axisComment.trim()
+                                    ? "border-emerald-300 bg-white focus:border-emerald-400"
+                                    : "border-red-300 bg-white focus:border-red-500"
+                                } outline-none transition-colors`}
+                              />
+                              {!axisComment.trim() && (
+                                <p className="mt-1 text-[10px] font-semibold text-red-500">
+                                  ⚠ Ce commentaire est obligatoire pour pouvoir signer
+                                </p>
+                              )}
                             </div>
-                            <textarea
-                              rows={3}
-                              value={axisComment}
-                              onChange={e =>
-                                form.setSubComments(prev => ({
-                                  ...prev,
-                                  [axis.id]: { ...prev[axis.id], ["__axis__"]: e.target.value },
-                                }))
-                              }
-                              placeholder={`Expliquez ici pourquoi ce sous-indicateur est ${triggeringItems.some(s => form.subChecks[axis.id]?.[s.id] === "NON_ACQUIS") ? "non acquis" : "en cours d'acquisition"}…`}
-                              className={`w-full rounded-lg border-2 px-3 py-2 text-sm ${
-                                axisComment.trim()
-                                  ? "border-emerald-300 bg-white focus:border-emerald-400"
-                                  : "border-red-300 bg-white focus:border-red-500"
-                              } outline-none transition-colors`}
-                            />
-                            {!axisComment.trim() && (
-                              <p className="mt-1 text-[10px] font-semibold text-red-500">
-                                ⚠ Ce commentaire est obligatoire pour pouvoir signer
-                              </p>
+                          );
+                        })}
+                    </div>
+                  )}
+
+                  {/* Validation avant passage à l'étape 4 */}
+                  {(() => {
+                    const untouchedAxes = form.axes.filter(a => !form.touched[a.id]);
+                    const axesWithMissingSubStatus = form.axes.filter(a =>
+                      (a.subItems || []).some(si => !(form.subChecks[a.id]?.[si.id] ?? ""))
+                    );
+                    const axesWithMissingComment = form.axes.filter(a => {
+                      const needsComment = (a.subItems || []).some(si => {
+                        const st = form.subChecks[a.id]?.[si.id] ?? "";
+                        return st === "NON_ACQUIS" || st === "EN_COURS";
+                      });
+                      return needsComment && !form.subComments[a.id]?.["__axis__"]?.trim();
+                    });
+                    const canAdvance = form.allAxesTouched && form.allSubItemsSelected;
+                    return (
+                      <>
+                        {!canAdvance && (
+                          <div className="mt-4 rounded-xl border-2 border-amber-300 bg-amber-50 p-4 space-y-2">
+                            <p className="text-sm font-extrabold uppercase text-amber-800">
+                              Avant de continuer, veuillez compléter :
+                            </p>
+                            {untouchedAxes.length > 0 && (
+                              <div>
+                                <p className="text-xs font-bold text-amber-700 mb-1">Axes non ajustés :</p>
+                                <ul className="ml-4 list-disc space-y-0.5">
+                                  {untouchedAxes.map(a => (
+                                    <li key={a.id} className="text-xs text-amber-900 font-semibold">{a.label}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {axesWithMissingSubStatus.length > 0 && (
+                              <div>
+                                <p className="text-xs font-bold text-amber-700 mb-1">Sous-indicateurs sans statut :</p>
+                                <ul className="ml-4 list-disc space-y-0.5">
+                                  {axesWithMissingSubStatus.map(a => (
+                                    <li key={a.id} className="text-xs text-amber-900 font-semibold">
+                                      {a.label} — {(a.subItems || []).filter(si => !(form.subChecks[a.id]?.[si.id] ?? "")).map(si => si.label).join(", ")}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {axesWithMissingComment.length > 0 && (
+                              <div>
+                                <p className="text-xs font-bold text-amber-700 mb-1">Commentaires obligatoires manquants :</p>
+                                <ul className="ml-4 list-disc space-y-0.5">
+                                  {axesWithMissingComment.map(a => (
+                                    <li key={a.id} className="text-xs text-amber-900 font-semibold">{a.label}</li>
+                                  ))}
+                                </ul>
+                              </div>
                             )}
                           </div>
-                        );
-                      })}
-                  </div>
-                )}
+                        )}
+                        <div className="flex justify-between pt-4 border-t border-slate-100">
+                          <Button variant="ghost" onClick={() => setEvalStep(form.drawEnabled ? 2 : 1)}>← Retour</Button>
+                          <Button
+                            variant="primary"
+                            disabled={!canAdvance}
+                            onClick={() => setEvalStep(4)}
+                          >
+                            Suivant →
+                          </Button>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
 
-                <div ref={step4Ref} className="mt-4 border-t border-slate-100 pt-4">
+              {/* ── ÉTAPE 4 : Commentaires ── */}
+              {evalStep === 4 && (
+                <div className="mx-auto max-w-2xl px-6 py-10 space-y-6">
+                  <h2 className="text-xl font-black uppercase tracking-wide text-slate-700">
+                    Points positifs & axes d'amélioration
+                  </h2>
                   <RemarksStep
                     positive={form.remarksPositive}
                     improvement={form.remarksImprovement}
                     onChangePositive={form.setRemarksPositive}
                     onChangeImprovement={form.setRemarksImprovement}
                   />
+                  <div className="flex justify-between pt-2">
+                    <Button variant="ghost" onClick={() => setEvalStep(3)}>← Retour</Button>
+                    <Button variant="primary" onClick={() => setEvalStep(5)}>Suivant →</Button>
+                  </div>
                 </div>
+              )}
 
-                <div ref={signatureSectionRef} className="mt-4">
-                  <h3 className="mb-2 flex items-center gap-2 text-sm font-extrabold uppercase text-slate-500">
-                    <PenLine size={16} /> Étape 5 — Signature
-                    <ContextHelp
-                      title="Aide signature"
-                      lines={[
-                        "Vous ne pouvez signer qu'une fois l'évaluation, les sous-indicateurs et les remarques complétés.",
-                        "Signez dans le cadre blanc avec la souris ou le doigt.",
-                      ]}
-                    />
-                  </h3>
+              {/* ── ÉTAPE 5 : Signature & validation ── */}
+              {evalStep === 5 && (
+                <div className="px-6 py-10">
+                  <h2 className="mb-6 text-xl font-black uppercase tracking-wide text-slate-700">
+                    Signature & validation
+                  </h2>
 
                   {isCoordinator && form.loadedEvaluation?.evaluationDurationMs != null && (
-                    <div className="mb-2 rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+                    <div className="mb-4 rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
                       Temps d'épreuve (du début du chrono à la validation) :
                       <span className="ml-1 font-semibold text-slate-800">
                         {formatDurationMs(form.loadedEvaluation.evaluationDurationMs)}
@@ -975,8 +1082,15 @@ export function App() {
                     onDraw={draw}
                     onStopDrawing={stopDrawing}
                   />
+
+                  {!form.signatureImage && (
+                    <div className="mt-6 flex justify-start">
+                      <Button variant="ghost" onClick={() => setEvalStep(4)}>← Retour</Button>
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
+
               </>
               )}
             </>
@@ -1000,6 +1114,7 @@ export function App() {
                     if (form.selectedSavedId) {
                       form.loadSavedEvaluation(form.selectedSavedId);
                       clearCanvasSignature();
+                      setEvalStep(3);
                       notify("Évaluation chargée pour modification.");
                     }
                   }}
@@ -1049,19 +1164,6 @@ export function App() {
             Valider
           </Button>
         </div>
-      </Modal>
-
-      <Modal isOpen={showDrawModal} onClose={() => setShowDrawModal(false)} title="Tirage au sort">
-        {drawResult?.mode === "group" ? (
-          <>
-            <p className="mb-2 font-semibold">{drawResult.group.title}</p>
-            <ul className="ml-5 list-disc">
-              {drawResult.group.questions.map((q, i) => <li key={i}>{q}</li>)}
-            </ul>
-          </>
-        ) : (
-          <p><span className="font-semibold">Question:</span> {drawResult?.question}</p>
-        )}
       </Modal>
 
       <Modal

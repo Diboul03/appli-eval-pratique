@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "appli-eval-pratique",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "identifier": "com.diboul.applievalpratique",
   "build": {
     "frontendDist": "../dist",

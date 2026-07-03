@@ -24,7 +24,7 @@ export function StudentStep({
   return (
     <>
       <h3 className="mb-2 flex items-center gap-2 text-sm font-extrabold uppercase text-slate-500">
-        <GraduationCap size={16} /> Étape 2 — Étudiant & UE
+        <GraduationCap size={16} /> Étudiant & UE
       </h3>
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2 space-y-1">
