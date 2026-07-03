@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Eye, CheckCircle, Trash2, FlaskConical } from "lucide-react";
+import { ArrowLeft, Eye, CheckCircle, Trash2, FlaskConical, X, Users, Clock, BookOpen, Target } from "lucide-react";
 import { logoDataUri } from "../assets/logo";
 import type { AppRoute, Axis, EvalConfig, ExaminerItem, QuestionGroup, StudentData, StudentItem } from "../types";
 import { PROMOTIONS } from "../types";
@@ -39,7 +39,7 @@ function configToStudentData(cfg: EvalConfig): StudentData {
   };
 }
 
-export function EvalConfigPage({ mode, evalId, onNavigate, onRequestPreview }: Props) {
+export function EvalConfigPage({ mode, evalId, onNavigate }: Props) {
   const { getConfig, createConfig, updateConfig, deleteConfig } = useEvalStore();
   const { confirm, notify } = useDialogs();
 
@@ -66,6 +66,7 @@ export function EvalConfigPage({ mode, evalId, onNavigate, onRequestPreview }: P
   const [bulkStudentsText, setBulkStudentsText] = useState("");
   const [bulkGroupsText, setBulkGroupsText] = useState("");
   const [bulkSinglesText, setBulkSinglesText] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
 
   const studentsSectionRef = useRef<HTMLDivElement | null>(null);
   const questionsSectionRef = useRef<HTMLDivElement | null>(null);
@@ -127,6 +128,32 @@ export function EvalConfigPage({ mode, evalId, onNavigate, onRequestPreview }: P
     }
   };
 
+  const handleReset = async () => {
+    const ok = await confirm({
+      title: "Réinitialiser le formulaire ?",
+      message: "Tous les champs seront remis à zéro (étudiants, questions, évaluateur, axes). Les évaluations déjà enregistrées ne sont pas supprimées.",
+      confirmLabel: "Réinitialiser",
+      danger: true,
+    });
+    if (!ok) return;
+    const blank = blankConfig();
+    setDefaultExaminer(blank.defaultExaminer);
+    setStudentList(blank.studentList);
+    setStudentListValidated(blank.studentListValidated);
+    setAxes(blank.axes);
+    setDrawEnabled(blank.drawEnabled);
+    setDrawMode(blank.drawMode);
+    setDrawGroups(blank.drawGroups);
+    setDrawSingles(blank.drawSingles);
+    setDrawListValidated(blank.drawListValidated);
+    setExamDurationMinutes(blank.examDurationMinutes);
+    setShowFinalNoteToEvaluator(blank.showFinalNoteToEvaluator);
+    setShowBaremeToEvaluator(blank.showBaremeToEvaluator);
+    setShowPercentToEvaluator(blank.showPercentToEvaluator);
+    setStudentData(prev => ({ ...prev, promotion: "", ue: "" }));
+    notify("Formulaire réinitialisé.");
+  };
+
   const handleDelete = async () => {
     if (!selectedId) return;
     const cfg = getConfig(selectedId);
@@ -143,7 +170,7 @@ export function EvalConfigPage({ mode, evalId, onNavigate, onRequestPreview }: P
   };
 
   const fillTest = () => {
-    setStudentData(prev => ({ ...prev, promotion: "PCEO2", ue: "UE Kinésithérapie — Bilan articulaire" }));
+    setStudentData(prev => ({ ...prev, promotion: "PCEO2", ue: "U.E. 5.3" }));
     setDefaultExaminer({ nom: "DUPONT", prenom: "MARIE" });
     setExamDurationMinutes(15);
     setStudentList([
@@ -157,13 +184,13 @@ export function EvalConfigPage({ mode, evalId, onNavigate, onRequestPreview }: P
     setDrawGroups([
       {
         id: generateId(),
-        title: "Bilan articulaire",
-        questions: ["Décrire le bilan de l'épaule", "Mesurer la flexion du genou en DD", "Bilan de la cheville post-entorse"],
+        title: "Ostéopathie structurelle",
+        questions: ["Tester la mobilité de T4 en rotation", "Décrire le thrust dorsal en décubitus", "Bilan du bassin en procubitus"],
       },
       {
         id: generateId(),
-        title: "Bilan musculaire",
-        questions: ["Testing du quadriceps", "Évaluation des rotateurs de hanche", "Testing des fléchisseurs plantaires"],
+        title: "Ostéopathie viscérale",
+        questions: ["Mobilisation du foie en décubitus", "Test de mobilité du côlon sigmoïde", "Écoute abdominale globale"],
       },
     ]);
     setDrawListValidated(true);
@@ -179,6 +206,7 @@ export function EvalConfigPage({ mode, evalId, onNavigate, onRequestPreview }: P
   const hasConfigs = configs.length > 0;
 
   return (
+    <>
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
       <div className="sticky top-0 z-20 flex items-center justify-between border-b border-white/10 bg-slate-800 px-6 py-3">
@@ -212,15 +240,13 @@ export function EvalConfigPage({ mode, evalId, onNavigate, onRequestPreview }: P
               <Trash2 size={13} />
             </button>
           )}
-          {onRequestPreview && (
-            <button
-              type="button"
-              onClick={() => onRequestPreview({ ...blankConfig(), ...gatherConfig() } as EvalConfig)}
-              className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold text-white/50 hover:bg-white/5 hover:text-white/80"
-            >
-              <Eye size={13} /> Aperçu
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setShowPreview(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold text-white/50 hover:bg-white/5 hover:text-white/80"
+          >
+            <Eye size={13} /> Aperçu
+          </button>
           <button
             type="button"
             onClick={handleSave}
@@ -357,9 +383,109 @@ export function EvalConfigPage({ mode, evalId, onNavigate, onRequestPreview }: P
         axesMaxSum={axesMaxSum}
         setScores={() => {}}
         questionsCount={questionsCount}
-        onRequestReset={() => {}}
+        onRequestReset={handleReset}
         hideUePromoDuration
       />
     </div>
+
+    {/* Modale aperçu — lecture seule, aucun impact sur le store */}
+    {showPreview && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+        onClick={() => setShowPreview(false)}
+      >
+        <div
+          className="relative w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-800 p-6 shadow-2xl"
+          onClick={e => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={() => setShowPreview(false)}
+            className="absolute right-4 top-4 rounded-lg p-1 text-white/40 hover:bg-white/10 hover:text-white/80"
+          >
+            <X size={18} />
+          </button>
+
+          <h2 className="mb-4 text-base font-black uppercase tracking-wide text-white/80">
+            Aperçu de la configuration
+          </h2>
+
+          {/* Identifiants */}
+          <div className="mb-4 grid grid-cols-2 gap-3">
+            <div className="rounded-xl bg-slate-700/60 p-3">
+              <p className="mb-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">Promotion</p>
+              <p className="text-sm font-semibold text-white">{studentData.promotion || <span className="text-slate-500 italic">non renseignée</span>}</p>
+            </div>
+            <div className="rounded-xl bg-slate-700/60 p-3">
+              <p className="mb-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">U.E.</p>
+              <p className="text-sm font-semibold text-white">{studentData.ue || <span className="text-slate-500 italic">non renseignée</span>}</p>
+            </div>
+          </div>
+
+          {/* Évaluateur + durée */}
+          <div className="mb-4 flex gap-3">
+            <div className="flex flex-1 items-center gap-2 rounded-xl bg-slate-700/60 px-3 py-2.5">
+              <Users size={15} className="text-emerald-400 shrink-0" />
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Évaluateur</p>
+                <p className="text-sm text-white">
+                  {defaultExaminer.prenom || defaultExaminer.nom
+                    ? `${defaultExaminer.prenom} ${defaultExaminer.nom}`.trim()
+                    : <span className="italic text-slate-500">non renseigné</span>}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 rounded-xl bg-slate-700/60 px-3 py-2.5">
+              <Clock size={15} className="text-amber-400 shrink-0" />
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Durée</p>
+                <p className="text-sm text-white">{examDurationMinutes ? `${examDurationMinutes} min` : <span className="italic text-slate-500">—</span>}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Axes */}
+          <div className="mb-4">
+            <div className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+              <Target size={12} /> Axes d'évaluation ({axes.length}) — total {axesMaxSum} pts
+            </div>
+            {axes.length === 0 ? (
+              <p className="text-xs italic text-slate-500">Aucun axe configuré</p>
+            ) : (
+              <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
+                {axes.map(ax => (
+                  <div key={ax.id} className="flex items-center justify-between rounded-lg bg-slate-700/40 px-3 py-1.5">
+                    <span className="text-xs text-white/80">{ax.label || "Sans nom"}</span>
+                    <span className="text-xs font-bold text-amber-400">{ax.max} pts</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Étudiants + tirage */}
+          <div className="flex gap-3">
+            <div className="flex flex-1 items-center gap-2 rounded-xl bg-slate-700/60 px-3 py-2.5">
+              <BookOpen size={15} className="text-violet-400 shrink-0" />
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Étudiants</p>
+                <p className="text-sm text-white">{studentList.length > 0 ? `${studentList.length} inscrits` : <span className="italic text-slate-500">aucun</span>}</p>
+              </div>
+            </div>
+            <div className="flex flex-1 items-center gap-2 rounded-xl bg-slate-700/60 px-3 py-2.5">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Tirage</p>
+                <p className="text-sm text-white">
+                  {!drawEnabled ? "Désactivé" : drawMode === "group"
+                    ? `${drawGroups.length} groupe(s)`
+                    : `${drawSingles.length} question(s)`}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

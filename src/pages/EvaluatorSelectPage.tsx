@@ -1,35 +1,54 @@
-import { ArrowLeft, GraduationCap, BookOpen, Users } from "lucide-react";
+import { ArrowLeft, UserCircle, BookOpen, Users } from "lucide-react";
 import { logoDataUri } from "../assets/logo";
 import type { AppRoute, EvalConfig } from "../types";
 import { useEvalStore } from "../hooks/useEvalStore";
 
 interface Props {
-  route: { page: "eval-select-promo" } | { page: "eval-select-ue"; promotion: string };
+  route: { page: "eval-select-evaluator" } | { page: "eval-select-ue"; evaluatorKey: string };
   onNavigate: (route: AppRoute) => void;
 }
 
-export function EvaluatorSelectPage({ route, onNavigate }: Props) {
-  const { configs, promotionsAvailable } = useEvalStore();
+function evaluatorKey(cfg: EvalConfig): string {
+  return `${cfg.defaultExaminer.nom}||${cfg.defaultExaminer.prenom}`;
+}
 
-  if (route.page === "eval-select-promo") {
+function evaluatorLabel(cfg: EvalConfig): string {
+  return [cfg.defaultExaminer.prenom, cfg.defaultExaminer.nom].filter(Boolean).join(" ") || "—";
+}
+
+export function EvaluatorSelectPage({ route, onNavigate }: Props) {
+  const { configs } = useEvalStore();
+
+  if (route.page === "eval-select-evaluator") {
+    // Dédoublonner les évaluateurs
+    const seen = new Set<string>();
+    const evaluators: { key: string; label: string }[] = [];
+    for (const cfg of configs) {
+      const key = evaluatorKey(cfg);
+      if (!seen.has(key)) {
+        seen.add(key);
+        evaluators.push({ key, label: evaluatorLabel(cfg) });
+      }
+    }
+
     return (
-      <PageShell title="Choisissez votre promotion" backRoute={{ page: "home" }} onNavigate={onNavigate}>
-        {promotionsAvailable.length === 0 ? (
+      <PageShell title="Qui êtes-vous ?" backRoute={{ page: "home" }} onNavigate={onNavigate}>
+        {evaluators.length === 0 ? (
           <div className="rounded-2xl border border-white/10 bg-white/5 p-12 text-center text-white/40">
-            <GraduationCap size={36} className="mx-auto mb-3 opacity-30" />
+            <UserCircle size={36} className="mx-auto mb-3 opacity-30" />
             <p>Aucune évaluation configurée.<br />Contactez un administrateur.</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {promotionsAvailable.map(promo => (
+            {evaluators.map(ev => (
               <button
-                key={promo}
+                key={ev.key}
                 type="button"
-                onClick={() => onNavigate({ page: "eval-select-ue", promotion: promo })}
+                onClick={() => onNavigate({ page: "eval-select-ue", evaluatorKey: ev.key })}
                 className="group flex flex-col items-center gap-3 rounded-2xl border border-emerald-400/20 bg-white/5 p-5 text-center backdrop-blur-sm transition-all hover:border-emerald-400/50 hover:bg-white/10 active:scale-[0.98]"
               >
-                <GraduationCap size={28} className="text-emerald-400/70 group-hover:text-emerald-300 transition-colors" />
-                <span className="text-sm font-black uppercase tracking-wide text-emerald-300 leading-tight">{promo}</span>
+                <UserCircle size={28} className="text-emerald-400/70 group-hover:text-emerald-300 transition-colors" />
+                <span className="text-sm font-black uppercase tracking-wide text-emerald-300 leading-tight">{ev.label}</span>
               </button>
             ))}
           </div>
@@ -38,14 +57,16 @@ export function EvaluatorSelectPage({ route, onNavigate }: Props) {
     );
   }
 
-  const { promotion } = route;
-  const ues: EvalConfig[] = configs.filter(c => c.promotion === promotion);
+  // Sélection de l'U.E. pour cet évaluateur
+  const { evaluatorKey: selKey } = route;
+  const ues: EvalConfig[] = configs.filter(cfg => evaluatorKey(cfg) === selKey);
+  const evalName = ues.length > 0 ? evaluatorLabel(ues[0]) : selKey;
 
   return (
     <PageShell
-      title={`Promotion ${promotion}`}
+      title={evalName}
       subtitle="Choisissez l'U.E. à évaluer"
-      backRoute={{ page: "eval-select-promo" }}
+      backRoute={{ page: "eval-select-evaluator" }}
       onNavigate={onNavigate}
     >
       <div className="flex flex-col gap-3">
@@ -70,7 +91,7 @@ export function EvaluatorSelectPage({ route, onNavigate }: Props) {
                 </div>
                 <div>
                   <div className={`text-xs font-black uppercase tracking-widest mb-0.5 ${allDone ? "text-white/25" : "text-emerald-400"}`}>
-                    {[cfg.defaultExaminer.prenom, cfg.defaultExaminer.nom].filter(Boolean).join(" ") || "—"}
+                    {cfg.promotion}
                   </div>
                   <div className={`font-black uppercase tracking-wide text-base leading-tight ${allDone ? "text-white/40" : "text-white/90"}`}>
                     {cfg.ue || "U.E. sans nom"}

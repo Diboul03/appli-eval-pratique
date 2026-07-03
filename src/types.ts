@@ -1,7 +1,7 @@
 export const PROMOTIONS = [
   "PCEO1", "PCEO2", "PCEO3",
   "DCEO1", "DCEO2",
-  "P1 D.E.", "P2 D.E.", "DECO D.E.",
+  "P1 D.E.", "P2 D.E.", "DCEO D.E.",
 ] as const;
 export type Promotion = typeof PROMOTIONS[number];
 
@@ -97,8 +97,8 @@ export type AppRoute =
   | { page: "admin-bdd" }
   | { page: "admin-recap"; evalId: string }
   | { page: "admin-preview"; config: EvalConfig; backRoute: AppRoute }
-  | { page: "eval-select-promo" }
-  | { page: "eval-select-ue"; promotion: string }
+  | { page: "eval-select-evaluator" }
+  | { page: "eval-select-ue"; evaluatorKey: string }
   | { page: "eval-run"; evalId: string };
 
 export interface SavedEvaluation {

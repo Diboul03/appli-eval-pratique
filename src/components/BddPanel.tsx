@@ -52,11 +52,9 @@ function formatDateFr(dateStr: string): string {
   return d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 }
 
-function safeFilename(s: string) {
-  return s.replace(/[^a-zA-Z0-9À-ÿ._-]/g, "-").replace(/-{2,}/g, "-").replace(/^-|-$/g, "");
-}
 
 const PRESENCE_PRESETS = ["10 min", "15 min", "20 min", "30 min", "45 min", "1 h"];
+const JURY_PRESETS = ["Jury 1", "Jury 2", "Jury 3", "Jury 4", "Jury 5", "Jury 6"];
 
 // Style identique à la config : vert si vide/requis, gris si rempli
 const fieldCls = (value: string, required = true) =>
@@ -354,12 +352,22 @@ export function BddPanel({ studentList, defaultExaminer, examDurationMinutes, ue
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <div>
               <label className={labelCls}>Numéro jury</label>
-              <input
-                className={fieldCls(juryNumero, false)}
-                value={juryNumero}
-                onChange={e => setJuryNumero(e.target.value)}
-                placeholder="Jury 1"
-              />
+              <select
+                className={`mb-1 ${fieldCls(juryNumero, false)}`}
+                value={JURY_PRESETS.includes(juryNumero) ? juryNumero : "__custom__"}
+                onChange={e => { if (e.target.value !== "__custom__") setJuryNumero(e.target.value); }}
+              >
+                {JURY_PRESETS.map(v => <option key={v} value={v}>{v}</option>)}
+                <option value="__custom__">Autre</option>
+              </select>
+              {!JURY_PRESETS.includes(juryNumero) && (
+                <input
+                  className={fieldCls(juryNumero, false)}
+                  value={juryNumero}
+                  onChange={e => setJuryNumero(e.target.value)}
+                  placeholder="Ex : Jury A"
+                />
+              )}
             </div>
             <div>
               <label className={labelCls}>Jour de passage *</label>

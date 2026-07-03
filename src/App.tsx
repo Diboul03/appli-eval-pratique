@@ -27,7 +27,7 @@ import { BddPanel } from "./components/BddPanel";
 import { RecapTable } from "./components/RecapTable";
 import { useEvaluationStats } from "./hooks/useEvaluationStats";
 import { buildEvaluationsHtml } from "./utils/evaluations";
-import { buildPromoFolder, buildNotesFolder, buildBddFolder, buildExportFileName, saveFileToFolder } from "./utils/exportFolder";
+import { buildPromoFolder, buildNotesFolder, buildExportFileName, saveFileToFolder } from "./utils/exportFolder";
 import { buildRecapXlsxBuffer } from "./utils/recapXlsx";
 import { logoDataUri } from "./assets/logo";
 import type { DrawPersisted } from "./types";
@@ -42,7 +42,7 @@ export function App() {
   if (route.page === "admin-bdd") return <BddSelectPage onNavigate={setRoute} />;
   if (route.page === "admin-recap") return <RecapSelectPage initialEvalId={route.evalId} onNavigate={setRoute} />;
   if (route.page === "admin-preview") return <EvaluatorWizard previewConfig={route.config} onBack={() => setRoute(route.backRoute)} onNavigate={setRoute} />;
-  if (route.page === "eval-select-promo" || route.page === "eval-select-ue") {
+  if (route.page === "eval-select-evaluator" || route.page === "eval-select-ue") {
     return <EvaluatorSelectPage route={route} onNavigate={setRoute} />;
   }
   // route.page === "eval-run" → EvaluatorWizard

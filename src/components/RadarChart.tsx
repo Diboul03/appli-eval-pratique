@@ -52,19 +52,43 @@ export function RadarChart({
   setScores,
   setTouched,
   touched,
-  axesMaxSum,
-  showBareme,
-  showPercent,
   subChecks,
   setSubChecks,
 }: RadarChartProps) {
+  const [coherenceWarn, setCoherenceWarn] = useState<string | null>(null);
+
+  // Helpers sous-indicateurs
+  const siItemsFor = useCallback((axisId: string) => {
+    const ax = axes.find(a => a.id === axisId);
+    return ax?.subItems ?? [];
+  }, [axes]);
+
+  const allAcquis = useCallback((axisId: string, pending?: { siId: string; status: SubStatus }) => {
+    const items = siItemsFor(axisId);
+    if (items.length === 0) return false;
+    return items.every(si => {
+      if (pending && si.id === pending.siId) return pending.status === "ACQUIS";
+      return (subChecks?.[axisId]?.[si.id] ?? "") === "ACQUIS";
+    });
+  }, [siItemsFor, subChecks]);
+
+  const allNonAcquis = useCallback((axisId: string, pending?: { siId: string; status: SubStatus }) => {
+    const items = siItemsFor(axisId);
+    if (items.length === 0) return false;
+    return items.every(si => {
+      if (pending && si.id === pending.siId) return pending.status === "NON_ACQUIS";
+      return (subChecks?.[axisId]?.[si.id] ?? "") === "NON_ACQUIS";
+    });
+  }, [siItemsFor, subChecks]);
+
   const center = 500;
-  const radius = 210;
-  const lblRadX = radius + 140; // horizontal clearance (wider for ±0°/180° axes)
-  const lblRadY = radius + 30;  // vertical clearance — réduit pour coller au cercle
+  const radius = 300;
+  const lblRadX = radius + 105; // clearance horizontal
+  const lblRadY = radius + 40;  // clearance vertical
 
   const svgRef = useRef<SVGSVGElement | null>(null);
   const lockedAxisIndex = useRef<number | null>(null);
+  const clampWarnShownRef = useRef(false);
   const [hoveredAxisIndex, setHoveredAxisIndex] = useState<number | null>(null);
 
   const angleForIndex = (i: number, n: number) => -90 + (360 / n) * i;
@@ -111,10 +135,33 @@ export function RadarChart({
       const dist = Math.sqrt(x * x + y * y);
       let newVal = Math.round((dist / radius) * axis.max * 10) / 10;
       newVal = Math.max(0, Math.min(axis.max, newVal));
+
+      const mid = axis.max / 2;
+      const siItems = axis.subItems ?? [];
+      if (siItems.length > 0) {
+        if (allAcquis(axis.id) && newVal < mid) {
+          newVal = mid;
+          if (!clampWarnShownRef.current) {
+            clampWarnShownRef.current = true;
+            setCoherenceWarn(
+              `Tous les sous-indicateurs de « ${axis.label} » sont acquis (🟢).\n\nUne note inférieure à la moyenne (${mid.toFixed(1)} / ${axis.max}) est incohérente avec des sous-indicateurs tous acquis.\n\nModifiez d'abord les ronds si vous souhaitez noter en dessous de la moyenne.`
+            );
+          }
+        } else if (allNonAcquis(axis.id) && newVal > mid) {
+          newVal = mid;
+          if (!clampWarnShownRef.current) {
+            clampWarnShownRef.current = true;
+            setCoherenceWarn(
+              `Tous les sous-indicateurs de « ${axis.label} » sont non acquis (🔴).\n\nUne note supérieure à la moyenne (${mid.toFixed(1)} / ${axis.max}) est incohérente avec des sous-indicateurs tous non acquis.\n\nModifiez d'abord les ronds si vous souhaitez noter au-dessus de la moyenne.`
+            );
+          }
+        }
+      }
+
       setScores(prev => ({ ...prev, [axis.id]: newVal }));
       setTouched(prev => ({ ...prev, [axis.id]: true }));
     },
-    [axes, setScores, setTouched],
+    [axes, allAcquis, allNonAcquis, setScores, setTouched],
   );
 
   const onRadarMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -122,6 +169,7 @@ export function RadarChart({
     const { idx, diff } = findClosestAxis(x, y, 20);
     if (diff <= 20) {
       lockedAxisIndex.current = idx;
+      clampWarnShownRef.current = false;
       setHoveredAxisIndex(idx);
       updateLockedAxis(x, y);
     }
@@ -146,6 +194,7 @@ export function RadarChart({
     const { idx, diff } = findClosestAxis(x, y, 25);
     if (diff <= 25) {
       lockedAxisIndex.current = idx;
+      clampWarnShownRef.current = false;
       setHoveredAxisIndex(idx);
       updateLockedAxis(x, y);
     }
@@ -174,12 +223,30 @@ export function RadarChart({
 
   const handleSiClick = useCallback(
     (axisId: string, siId: string, status: SubStatus) => {
+      const axis = axes.find(a => a.id === axisId);
+      if (!axis) return;
+      const mid = axis.max / 2;
+      const score = scores[axisId] ?? 0;
+
+      if (status === "ACQUIS" && allAcquis(axisId, { siId, status }) && score < mid) {
+        setCoherenceWarn(
+          `La note de « ${axis.label} » est inférieure à la moyenne (${score.toFixed(1)} / ${axis.max}).\n\nCocher tous les sous-indicateurs comme acquis (🟢) est incohérent avec une note en dessous de la moyenne.\n\nAugmentez d'abord la note sur le radar si tous les sous-indicateurs sont acquis.`
+        );
+        return;
+      }
+      if (status === "NON_ACQUIS" && allNonAcquis(axisId, { siId, status }) && score > mid) {
+        setCoherenceWarn(
+          `La note de « ${axis.label} » est supérieure à la moyenne (${score.toFixed(1)} / ${axis.max}).\n\nCocher tous les sous-indicateurs comme non acquis (🔴) est incohérent avec une note au-dessus de la moyenne.\n\nDiminuez d'abord la note sur le radar si tous les sous-indicateurs sont non acquis.`
+        );
+        return;
+      }
+
       setSubChecks?.(prev => ({
         ...prev,
         [axisId]: { ...prev[axisId], [siId]: status },
       }));
     },
-    [setSubChecks],
+    [axes, scores, allAcquis, allNonAcquis, setSubChecks],
   );
 
   const hasSubItems = axes.some(a => (a.subItems || []).length > 0);
@@ -208,8 +275,8 @@ export function RadarChart({
         </div>
         <svg
           ref={svgRef}
-          viewBox="0 50 1000 870"
-          className={`w-full h-[46vh] min-h-[320px] ${hoveredAxisIndex !== null ? "cursor-grab" : "cursor-not-allowed"} select-none touch-none`}
+          viewBox="0 0 1000 1000"
+          className={`h-auto w-full ${hoveredAxisIndex !== null ? "cursor-grab" : "cursor-not-allowed"} select-none touch-none`}
           onMouseDown={onRadarMouseDown}
           onMouseMove={onRadarMouseMove}
           onMouseUp={onRadarMouseUp}
@@ -227,7 +294,7 @@ export function RadarChart({
           </defs>
 
           <circle cx={center} cy={center} r={radius} fill="url(#radarGradient)" />
-          <circle cx={center} cy={center} r={radius * 0.5} fill="none" stroke="#bfdbfe" strokeWidth={2} />
+          <circle cx={center} cy={center} r={radius * 0.5} fill="none" stroke="#bfdbfe" strokeWidth={3} />
 
           {[0.2, 0.4, 0.6, 0.8, 1].map(lvl => (
             <circle key={lvl} cx={center} cy={center} r={radius * lvl} fill="none" stroke="#f1f5f9" strokeWidth={1} />
@@ -244,16 +311,14 @@ export function RadarChart({
 
             const siItems = a.subItems || [];
             const siCount = siItems.length;
-            const siRowH = 58;
+            const siRowH = 60;
             const siAreaH = siCount > 0 ? siCount * siRowH + 4 : 0;
-            const hasExtra = showBareme || showPercent; // barème line takes extra space
-            const titleBlockH = hasExtra ? 58 : 38; // title + optional barème
-            // Box shifts up for upper-half axes so sub-items don't overlap radar
-            const flipUp = siCount > 0 && Math.sin(rad) < -0.1;
-            const rectY = flipUp ? ly - 24 - siAreaH - titleBlockH + 14 : ly - 24;
+            const titleBlockH = 42;
+            // Pour l'axe du haut (flipUp) : la boîte s'étend vers le haut depuis ly
+            const flipUp = Math.sin(rad) < -0.3;
+            const rectY = flipUp ? Math.max(10, ly - titleBlockH - siAreaH) : ly - 22;
             const rectH = titleBlockH + siAreaH;
-            const titleY = rectY + 24;
-            const baremeY = rectY + 46;
+            const titleY = rectY + 26;
             const siBaseY = rectY + titleBlockH;
 
             const radarEdgeX = center + radius * Math.cos(rad);
@@ -274,9 +339,9 @@ export function RadarChart({
                   onTouchStart={e => e.stopPropagation()}
                 >
                 <rect
-                  x={lx - 105}
+                  x={lx - 115}
                   y={rectY}
-                  width={210}
+                  width={230}
                   height={rectH}
                   rx={6}
                   fill={bg}
@@ -286,14 +351,6 @@ export function RadarChart({
                 <text x={lx} y={titleY} fontSize={24} fontWeight={800} textAnchor="middle" fill="#64748b">
                   {a.label}
                 </text>
-
-                {(showBareme || showPercent) && (
-                  <text x={lx} y={baremeY} fontSize={18} fontWeight={700} textAnchor="middle" fill="#94a3b8">
-                    {showBareme
-                      ? `Barème: ${a.max.toFixed(1)}`
-                      : `${Math.round((a.max / axesMaxSum) * 100)}%`}
-                  </text>
-                )}
 
                 {siCount > 0 && siItems.map((si, siIdx) => {
                   const currentStatus = subChecks?.[a.id]?.[si.id] ?? "";
@@ -331,7 +388,7 @@ export function RadarChart({
                       {SI_STATUSES.map((targetStatus, ci) => {
                         const col = SI_COLORS[targetStatus];
                         const isSelected = currentStatus === targetStatus;
-                        const cx = lx - 24 + ci * 24;
+                        const cx = lx - 28 + ci * 28;
                         const cy = rowY + (wrapLabel(si.label)[1] ? 50 : 42);
                         return (
                           <g key={targetStatus}>
@@ -418,6 +475,29 @@ export function RadarChart({
           </div>
         )}
       </div>
+
+      {/* Modale d'incohérence note / sous-indicateurs */}
+      {coherenceWarn && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setCoherenceWarn(null)}>
+          <div
+            className="relative w-full max-w-md rounded-2xl border-2 border-amber-400 bg-white p-6 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-2xl">⚠️</span>
+              <h3 className="text-base font-black uppercase tracking-wide text-amber-700">Note incohérente</h3>
+            </div>
+            <p className="whitespace-pre-line text-sm leading-relaxed text-slate-700">{coherenceWarn}</p>
+            <button
+              type="button"
+              onClick={() => setCoherenceWarn(null)}
+              className="mt-5 w-full rounded-xl bg-amber-500 py-2 text-sm font-bold text-white hover:bg-amber-400"
+            >
+              J'ai compris
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

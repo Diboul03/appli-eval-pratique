@@ -49,7 +49,7 @@ export function HomePage({ onNavigate }: Props) {
           {/* Évaluateur */}
           <button
             type="button"
-            onClick={() => onNavigate({ page: "eval-select-promo" })}
+            onClick={() => onNavigate({ page: "eval-select-evaluator" })}
             className="group flex flex-1 flex-col items-center gap-5 rounded-2xl border border-emerald-400/20 bg-white/5 p-8 text-center backdrop-blur-sm transition-all hover:border-emerald-400/50 hover:bg-white/10 active:scale-[0.98]"
           >
             <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-emerald-400/10 text-emerald-400 transition-colors group-hover:bg-emerald-400/20">
