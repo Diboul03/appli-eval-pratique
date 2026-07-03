@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 export function getLocalStorageItem<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -23,9 +23,15 @@ export function setLocalStorageItem<T>(key: string, value: T) {
 export function useLocalStorage<T>(key: string, initialValue: T) {
   const [value, setValue] = useState<T>(() => getLocalStorageItem<T>(key, initialValue));
 
-  useEffect(() => {
-    setLocalStorageItem(key, value);
-  }, [key, value]);
+  // Écriture synchrone dans le setter pour que la valeur soit disponible immédiatement
+  // même si le composant se démonte avant l'exécution d'un useEffect
+  const setValueAndPersist = (action: T | ((prev: T) => T)) => {
+    setValue(prev => {
+      const next = typeof action === "function" ? (action as (p: T) => T)(prev) : action;
+      setLocalStorageItem(key, next);
+      return next;
+    });
+  };
 
-  return [value, setValue] as const;
+  return [value, setValueAndPersist] as const;
 }

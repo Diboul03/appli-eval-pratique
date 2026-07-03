@@ -2,6 +2,14 @@ import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PenTool, HelpCircle, Settings, AlertTriangle, Target, Download, Upload, KeyRound, TableIcon } from "lucide-react";
 import { useEvaluationForm, formatDurationMs } from "./hooks/useEvaluationForm";
+import { useEvalStore } from "./hooks/useEvalStore";
+import { HomePage } from "./pages/HomePage";
+import { AdminHomePage } from "./pages/AdminHomePage";
+import { EvalConfigPage } from "./pages/EvalConfigPage";
+import { EvaluatorSelectPage } from "./pages/EvaluatorSelectPage";
+import { BddSelectPage } from "./pages/BddSelectPage";
+import { RecapSelectPage } from "./pages/RecapSelectPage";
+import type { AppRoute } from "./types";
 import { Modal } from "./components/Modal";
 import { Button } from "./components/Button";
 import { useDialogs } from "./components/Dialogs";
@@ -19,14 +27,61 @@ import { BddPanel } from "./components/BddPanel";
 import { RecapTable } from "./components/RecapTable";
 import { useEvaluationStats } from "./hooks/useEvaluationStats";
 import { buildEvaluationsHtml } from "./utils/evaluations";
-import { buildFolderName, saveFileToFolder } from "./utils/exportFolder";
+import { buildPromoFolder, buildNotesFolder, buildBddFolder, buildExportFileName, saveFileToFolder } from "./utils/exportFolder";
 import { buildRecapXlsxBuffer } from "./utils/recapXlsx";
 import { logoDataUri } from "./assets/logo";
 import type { DrawPersisted } from "./types";
 
 export function App() {
+  const [route, setRoute] = useState<AppRoute>({ page: "home" });
+
+  if (route.page === "home") return <HomePage onNavigate={setRoute} />;
+  if (route.page === "admin-home") return <AdminHomePage onNavigate={setRoute} />;
+  if (route.page === "admin-create") return <EvalConfigPage mode="create" onNavigate={setRoute} onRequestPreview={cfg => setRoute({ page: "admin-preview", config: cfg, backRoute: { page: "admin-create" } })} />;
+  if (route.page === "admin-edit") return <EvalConfigPage mode="edit" evalId={route.evalId} onNavigate={setRoute} onRequestPreview={cfg => setRoute({ page: "admin-preview", config: cfg, backRoute: { page: "admin-edit", evalId: route.evalId } })} />;
+  if (route.page === "admin-bdd") return <BddSelectPage onNavigate={setRoute} />;
+  if (route.page === "admin-recap") return <RecapSelectPage initialEvalId={route.evalId} onNavigate={setRoute} />;
+  if (route.page === "admin-preview") return <EvaluatorWizard previewConfig={route.config} onBack={() => setRoute(route.backRoute)} onNavigate={setRoute} />;
+  if (route.page === "eval-select-promo" || route.page === "eval-select-ue") {
+    return <EvaluatorSelectPage route={route} onNavigate={setRoute} />;
+  }
+  // route.page === "eval-run" → EvaluatorWizard
+  const evalId = route.page === "eval-run" ? route.evalId : undefined;
+  return <EvaluatorWizard evalId={evalId} onNavigate={setRoute} />;
+}
+
+function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId?: string; previewConfig?: import("./types").EvalConfig; onBack?: () => void; onNavigate: (r: AppRoute) => void }) {
   const { confirm, notify } = useDialogs();
   const form = useEvaluationForm();
+  const evalStore = useEvalStore();
+
+  // Charge la config de l'éval sélectionnée dans le formulaire au montage
+  useEffect(() => {
+    const cfg = previewConfig ?? (evalId ? evalStore.getConfig(evalId) : null);
+    if (!cfg) return;
+    form.setStudentList(cfg.studentList);
+    form.setStudentListValidated(cfg.studentListValidated);
+    form.setAxes(cfg.axes);
+    form.setDrawEnabled(cfg.drawEnabled);
+    form.setDrawMode(cfg.drawMode);
+    form.setDrawGroups(cfg.drawGroups);
+    form.setDrawSingles(cfg.drawSingles);
+    form.setDrawListValidated(cfg.drawListValidated);
+    form.setExamDurationMinutes(cfg.examDurationMinutes);
+    form.setDefaultExaminer(cfg.defaultExaminer);
+    form.setShowFinalNoteToEvaluator(cfg.showFinalNoteToEvaluator);
+    form.setShowBaremeToEvaluator(cfg.showBaremeToEvaluator);
+    form.setShowPercentToEvaluator(cfg.showPercentToEvaluator);
+    form.setSavedEvaluations(cfg.savedEvaluations);
+    form.setStudentData(prev => ({
+      ...prev,
+      ue: cfg.ue,
+      promotion: cfg.promotion,
+      evaluatorNom: cfg.defaultExaminer.nom,
+      evaluatorPrenom: cfg.defaultExaminer.prenom,
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [evalId, previewConfig]);
 
   const [showHelp, setShowHelp] = useState(false);
   const [isCoordinator, setIsCoordinator] = useState(false);
@@ -350,7 +405,7 @@ export function App() {
   const totalStudentsCount = form.studentList.length;
 
   return (
-    <div className="min-h-screen bg-stone-200 font-sans text-slate-800">
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
       <StickyHeader
         isCoordinator={isCoordinator}
         hasSelectedStudent={form.hasSelectedStudent}
@@ -374,25 +429,50 @@ export function App() {
       <div className="p-2 md:p-6">
         <div
           id="export-area"
-          className="mx-auto max-w-6xl overflow-hidden rounded-2xl bg-stone-50 shadow-2xl print:shadow-none"
+          className="mx-auto max-w-6xl overflow-hidden rounded-2xl bg-white shadow-sm border border-slate-200 print:shadow-none"
         >
-          <div className="border-b-4 border-emerald-300 bg-emerald-100 p-4 text-slate-800 md:p-6">
+          <div className="border-b border-white/10 bg-slate-800 p-4 text-white md:p-6">
             <div className="mb-3 flex items-center justify-between">
               <img
                 src={logoDataUri}
                 alt="Logo IFSO Vichy Clermont-FD"
-                className="h-12 w-auto md:h-14"
+                className="h-12 w-auto brightness-0 invert opacity-80 md:h-14"
               />
-              <span className="inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wide border-emerald-400 bg-emerald-200 text-emerald-900">
-                {isCoordinator ? "Mode administrateur" : "Mode évaluateur"}
-              </span>
+              <div className="flex items-center gap-2">
+                {previewConfig ? (
+                  <button
+                    type="button"
+                    onClick={() => onBack ? onBack() : onNavigate({ page: "admin-home" })}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-indigo-300 bg-indigo-100/60 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-indigo-800 hover:bg-indigo-200 transition-colors"
+                  >
+                    ← Retour config
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onNavigate({ page: "home" })}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-600 hover:bg-slate-100 transition-colors"
+                  >
+                    🏠 Accueil
+                  </button>
+                )}
+                <span className={`inline-flex items-center rounded-lg border px-3 py-1 text-[10px] font-bold uppercase tracking-wide ${
+                  previewConfig
+                    ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+                    : isCoordinator
+                    ? "border-amber-200 bg-amber-50 text-amber-700"
+                    : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                }`}>
+                  {previewConfig ? "👁 Mode aperçu" : isCoordinator ? "⚙️ Mode administrateur" : "📋 Mode évaluateur"}
+                </span>
+              </div>
             </div>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between">
               <div className="mb-3 text-center md:mb-0 md:text-left">
-                <div className="text-xs font-bold uppercase tracking-[0.12em] text-emerald-800/80">
+                <div className="text-xs font-bold uppercase tracking-[0.12em] text-white/40">
                   IFSO Vichy Clermont-Ferrand
                 </div>
-                <h1 className="text-2xl font-black uppercase tracking-tight text-slate-900 md:text-3xl">
+                <h1 className="text-2xl font-black uppercase tracking-tight text-white md:text-3xl">
                   Grille d'évaluation pratique
                 </h1>
               </div>
@@ -1193,19 +1273,25 @@ export function App() {
               setIsSaving(true);
               try {
                 const { item, newAllEvals } = await form.saveCurrentEvaluation();
-                // Exports dans le dossier promotion/UE/date
+                // Sauvegarde aussi dans l'EvalStore (multi-éval)
+                if (evalId) evalStore.addEvaluation(evalId, item);
+                // Exports automatiques sur la clé USB
                 const sessionEvals = newAllEvals.filter(
                   ev => ev.ue === item.ue && ev.date === item.date,
                 );
-                const dirName = buildFolderName(item.promotion || "", item.ue, item.date);
+                const promo = item.promotion || "inconnu";
+                const baseName = buildExportFileName(item.ue, item.date, "");
+                // HTML éval → dossier promotion
                 try {
+                  const promoDir = buildPromoFolder(promo);
                   const fullHtml = buildEvaluationsHtml(sessionEvals);
-                  await saveFileToFolder(dirName, "promotion-complete.html", fullHtml);
+                  await saveFileToFolder(promoDir, `${baseName}.html`, fullHtml);
                 } catch { /* non-bloquant */ }
+                // Récap notes xlsx → dossier "NOTES {PROMO} {UE}"
                 try {
+                  const notesDir = buildNotesFolder(promo, item.ue);
                   const xlsxBuf = await buildRecapXlsxBuffer(sessionEvals);
-                  const xlsxName = dirName + ".xlsx";
-                  await saveFileToFolder(dirName, xlsxName, xlsxBuf);
+                  await saveFileToFolder(notesDir, `${baseName}.xlsx`, xlsxBuf);
                 } catch { /* non-bloquant */ }
 
                 handleResetEvaluation();

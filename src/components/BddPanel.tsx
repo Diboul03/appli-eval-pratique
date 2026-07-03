@@ -3,6 +3,7 @@ import ExcelJS from "exceljs";
 import { logoDataUri } from "../assets/logo";
 import { Button } from "./Button";
 import { useDialogs } from "./Dialogs";
+import { buildBddFolder, buildExportFileName, saveFileToFolder } from "../utils/exportFolder";
 
 interface Student {
   civilite?: string;
@@ -11,6 +12,12 @@ interface Student {
 }
 
 
+interface OtherScheduleEntry {
+  student: Student;
+  heure: string;
+  date: string;
+}
+
 interface BddPanelProps {
   studentList: Student[];
   defaultExaminer: { nom: string; prenom: string };
@@ -18,6 +25,8 @@ interface BddPanelProps {
   ue: string;
   promotion: string;
   testTrigger?: number;
+  otherSchedules?: OtherScheduleEntry[][];
+  onScheduleGenerated?: (schedule: { student: Student; heure: string; period: "matin" | "apmidi"; date: string }[]) => void;
 }
 
 interface ScheduleEntry {
@@ -46,6 +55,8 @@ function formatDateFr(dateStr: string): string {
 function safeFilename(s: string) {
   return s.replace(/[^a-zA-Z0-9À-ÿ._-]/g, "-").replace(/-{2,}/g, "-").replace(/^-|-$/g, "");
 }
+
+const PRESENCE_PRESETS = ["10 min", "15 min", "20 min", "30 min", "45 min", "1 h"];
 
 // Style identique à la config : vert si vide/requis, gris si rempli
 const fieldCls = (value: string, required = true) =>
@@ -93,7 +104,7 @@ function TimeSlot({
   );
 }
 
-export function BddPanel({ studentList, defaultExaminer, examDurationMinutes, ue, promotion, testTrigger }: BddPanelProps) {
+export function BddPanel({ studentList, defaultExaminer, examDurationMinutes, ue, promotion, testTrigger, otherSchedules, onScheduleGenerated }: BddPanelProps) {
     const { notify } = useDialogs();
 
     const [juryNumero, setJuryNumero] = useState("Jury 1");
@@ -138,28 +149,78 @@ export function BddPanel({ studentList, defaultExaminer, examDurationMinutes, ue
     const generateSchedule = useCallback(() => {
       if (!canGenerate) { notify("Veuillez renseigner tous les champs requis.", "error"); return; }
 
-      const shuffled = [...studentList].sort(() => Math.random() - 0.5);
       const dur = examDurationMinutes > 0 ? examDurationMinutes : 15;
-      let current = matinActive ? timeToMin(matinDebut) : timeToMin(apremDebut);
-      let period: "matin" | "apmidi" = matinActive ? "matin" : "apmidi";
+
+      // Build list of all available slots in chronological order
+      const slots: { time: number; period: "matin" | "apmidi" }[] = [];
+      if (matinActive) {
+        for (let t = timeToMin(matinDebut); t + dur <= timeToMin(matinFin); t += dur)
+          slots.push({ time: t, period: "matin" });
+      }
+      if (apremActive) {
+        for (let t = timeToMin(apremDebut); t + dur <= timeToMin(apremFin); t += dur)
+          slots.push({ time: t, period: "apmidi" });
+      }
+
+      // Build forbidden-time map per student key (nom+prenom) from other UEs on same day
+      const forbiddenByStudent = new Map<string, Set<number>>();
+      if (otherSchedules && otherSchedules.length > 0) {
+        for (const otherSched of otherSchedules) {
+          for (const entry of otherSched) {
+            if (entry.date !== jourPassage) continue;
+            const key = `${entry.student.nom}|${entry.student.prenom}`;
+            if (!forbiddenByStudent.has(key)) forbiddenByStudent.set(key, new Set());
+            const occupied = timeToMin(entry.heure);
+            // Forbid slots within 2 durations of the occupied slot
+            for (let gap = -2; gap <= 2; gap++) {
+              forbiddenByStudent.get(key)!.add(occupied + gap * dur);
+            }
+          }
+        }
+      }
+
+      // Shuffle students
+      const shuffled = [...studentList].sort(() => Math.random() - 0.5);
+      const usedSlotIndices = new Set<number>();
       const result: ScheduleEntry[] = [];
 
       for (const student of shuffled) {
-        if (period === "matin" && current + dur > timeToMin(matinFin)) {
-          if (apremActive) { current = timeToMin(apremDebut); period = "apmidi"; }
-          else break;
+        const key = `${student.nom}|${student.prenom}`;
+        const forbidden = forbiddenByStudent.get(key) ?? new Set<number>();
+        // Find first available slot not forbidden for this student
+        const slotIdx = slots.findIndex((s, i) => !usedSlotIndices.has(i) && !forbidden.has(s.time));
+        if (slotIdx === -1) {
+          // No valid slot — fall back to first free slot ignoring constraint
+          const fallbackIdx = slots.findIndex((_, i) => !usedSlotIndices.has(i));
+          if (fallbackIdx === -1) break;
+          result.push({ student, heure: minToTime(slots[fallbackIdx].time), period: slots[fallbackIdx].period });
+          usedSlotIndices.add(fallbackIdx);
+        } else {
+          result.push({ student, heure: minToTime(slots[slotIdx].time), period: slots[slotIdx].period });
+          usedSlotIndices.add(slotIdx);
         }
-        if (period === "apmidi" && current + dur > timeToMin(apremFin)) break;
-        result.push({ student, heure: minToTime(current), period });
-        current += dur;
       }
 
       if (result.length < shuffled.length) {
         notify(`Attention : seulement ${result.length}/${shuffled.length} étudiants planifiés. Élargissez les créneaux.`, "error");
       }
+
+      // Check for constraint violations and warn
+      if (forbiddenByStudent.size > 0) {
+        const violations = result.filter(e => {
+          const k = `${e.student.nom}|${e.student.prenom}`;
+          const f = forbiddenByStudent.get(k);
+          return f && f.has(timeToMin(e.heure));
+        });
+        if (violations.length > 0) {
+          notify(`⚠ ${violations.length} étudiant(s) ont moins de 2 créneaux d'écart avec une autre U.E. — élargissez les horaires.`, "error");
+        }
+      }
+
       setSchedule(result);
       setGenerated(true);
-    }, [canGenerate, studentList, examDurationMinutes, matinActive, matinDebut, matinFin, apremActive, apremDebut, apremFin, notify]);
+      onScheduleGenerated?.(result.map(e => ({ ...e, date: jourPassage })));
+    }, [canGenerate, studentList, examDurationMinutes, matinActive, matinDebut, matinFin, apremActive, apremDebut, apremFin, otherSchedules, jourPassage, onScheduleGenerated, notify]);
 
     const exportXlsx = useCallback(async () => {
       if (schedule.length === 0) { notify("Générez d'abord le planning.", "error"); return; }
@@ -250,11 +311,20 @@ export function BddPanel({ studentList, defaultExaminer, examDurationMinutes, ue
       else if (buf instanceof Uint8Array) arrayBuf = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
       else arrayBuf = buf as ArrayBuffer;
 
+      const bddDir = buildBddFolder(ue, promotion);
+      const fileName = buildExportFileName(ue, jourPassage, ".xlsx");
+
+      try {
+        await saveFileToFolder(bddDir, fileName, arrayBuf);
+        notify(`BDD exportée dans le dossier "${bddDir}" sur la clé.`, "success");
+        return;
+      } catch { /* hors Tauri — fallback navigateur */ }
+
       const blob = new Blob([arrayBuf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `BDD-${safeFilename(promotion)}-${safeFilename(ue)}-${jourPassage}.xlsx`;
+      a.download = `${bddDir}_${fileName}`;
       document.body.appendChild(a); a.click(); a.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       notify("Export Excel téléchargé.", "success");
@@ -302,11 +372,19 @@ export function BddPanel({ studentList, defaultExaminer, examDurationMinutes, ue
             </div>
             <div>
               <label className={labelCls}>Temps de présence avant passage</label>
+              <select
+                className={`mb-1 ${fieldCls(tempsPresence, false)}`}
+                value={PRESENCE_PRESETS.includes(tempsPresence) ? tempsPresence : "__custom__"}
+                onChange={e => { if (e.target.value !== "__custom__") setTempsPresence(e.target.value); }}
+              >
+                {PRESENCE_PRESETS.map(v => <option key={v} value={v}>{v}</option>)}
+                <option value="__custom__">Autre</option>
+              </select>
               <input
                 className={fieldCls(tempsPresence, false)}
                 value={tempsPresence}
                 onChange={e => setTempsPresence(e.target.value)}
-                placeholder="20 min"
+                placeholder="Ex: 20 min"
               />
             </div>
             <div className="col-span-2 md:col-span-4">

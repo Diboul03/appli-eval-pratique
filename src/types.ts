@@ -1,3 +1,10 @@
+export const PROMOTIONS = [
+  "PCEO1", "PCEO2", "PCEO3",
+  "DCEO1", "DCEO2",
+  "P1 D.E.", "P2 D.E.", "DECO D.E.",
+] as const;
+export type Promotion = typeof PROMOTIONS[number];
+
 export type SubStatus = "" | "ACQUIS" | "EN_COURS" | "NON_ACQUIS";
 
 export type DrawMode = "single" | "group";
@@ -51,6 +58,48 @@ export interface QuestionGroup {
 export type DrawPersisted =
   | { mode: "single"; question: string }
   | { mode: "group"; group: QuestionGroup };
+
+export interface BddScheduleEntry {
+  student: StudentItem;
+  heure: string;   // "HH:MM"
+  period: "matin" | "apmidi";
+  date: string;    // ISO date "YYYY-MM-DD"
+}
+
+export interface EvalConfig {
+  id: string;
+  promotion: string;
+  ue: string;
+  defaultExaminer: ExaminerItem;
+  examDurationMinutes: number;
+  studentList: StudentItem[];
+  studentListValidated: boolean;
+  axes: Axis[];
+  drawEnabled: boolean;
+  drawMode: DrawMode;
+  drawGroups: QuestionGroup[];
+  drawSingles: string[];
+  drawListValidated: boolean;
+  showFinalNoteToEvaluator: boolean;
+  showBaremeToEvaluator: boolean;
+  showPercentToEvaluator: boolean;
+  savedEvaluations: SavedEvaluation[];
+  bddSchedule?: BddScheduleEntry[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type AppRoute =
+  | { page: "home" }
+  | { page: "admin-home" }
+  | { page: "admin-create" }
+  | { page: "admin-edit"; evalId: string }
+  | { page: "admin-bdd" }
+  | { page: "admin-recap"; evalId: string }
+  | { page: "admin-preview"; config: EvalConfig; backRoute: AppRoute }
+  | { page: "eval-select-promo" }
+  | { page: "eval-select-ue"; promotion: string }
+  | { page: "eval-run"; evalId: string };
 
 export interface SavedEvaluation {
   id: string;

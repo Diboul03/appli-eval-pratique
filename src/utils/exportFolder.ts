@@ -1,11 +1,36 @@
 import { invoke } from "@tauri-apps/api/core";
 
-export function buildFolderName(promotion: string, ue: string, date: string): string {
-  const sanitize = (s: string) =>
-    s.replace(/[/\\:*?"<>|]/g, "-").replace(/\s+/g, "_").trim() || "inconnu";
+export function sanitizeFolder(s: string): string {
+  return s.replace(/[/\\:*?"<>|]/g, "-").replace(/\s+/g, "_").trim() || "inconnu";
+}
+
+/** Retourne le nom du dossier promotion (racine des exports). */
+export function buildPromoFolder(promotion: string): string {
+  return sanitizeFolder(promotion);
+}
+
+/** Dossier pour les récaps de notes : "NOTES {PROMO} {UE}" */
+export function buildNotesFolder(promotion: string, ue: string): string {
+  return sanitizeFolder(`NOTES ${promotion} ${ue}`);
+}
+
+/** Dossier pour les BDD : "BDD {UE} {PROMO}" */
+export function buildBddFolder(ue: string, promotion: string): string {
+  return sanitizeFolder(`BDD ${ue} ${promotion}`);
+}
+
+/** Construit le nom de fichier pour un export (UE + date). */
+export function buildExportFileName(ue: string, date: string, ext: string): string {
   const [y, m, d] = (date || "").split("-");
   const datePart = d && m && y ? `${d}-${m}-${y.slice(2)}` : (date || "");
-  return [sanitize(promotion), sanitize(ue), datePart].filter(Boolean).join("_");
+  return [sanitizeFolder(ue), datePart].filter(Boolean).join("_") + ext;
+}
+
+/** @deprecated Utiliser buildPromoFolder + buildExportFileName */
+export function buildFolderName(promotion: string, ue: string, date: string): string {
+  const [y, m, d] = (date || "").split("-");
+  const datePart = d && m && y ? `${d}-${m}-${y.slice(2)}` : (date || "");
+  return [sanitizeFolder(promotion), sanitizeFolder(ue), datePart].filter(Boolean).join("_");
 }
 
 export async function saveFileToFolder(

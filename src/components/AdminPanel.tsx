@@ -69,6 +69,8 @@ interface AdminPanelProps {
   questionsCount: number;
 
   onRequestReset: () => void;
+  /** Masque le bloc UE / Promotion / Durée (géré par EvalConfigPage) */
+  hideUePromoDuration?: boolean;
 }
 
 export function AdminPanel({
@@ -113,6 +115,7 @@ export function AdminPanel({
   setScores,
   questionsCount,
   onRequestReset,
+  hideUePromoDuration = false,
 }: AdminPanelProps) {
   const { confirm, notify } = useDialogs();
   const [collapsedAxes, setCollapsedAxes] = useState<Record<string, boolean>>({});
@@ -491,7 +494,7 @@ export function AdminPanel({
           </div>
         </div>
 
-        <div className="mb-6 grid grid-cols-3 gap-4">
+        {!hideUePromoDuration && <div className="mb-6 grid grid-cols-3 gap-4">
           <div className="rounded-2xl border border-amber-200 bg-white/90 p-4 shadow-sm">
             <strong className="text-sm uppercase tracking-tight text-amber-900">
               UE
@@ -541,7 +544,7 @@ export function AdminPanel({
               min={0}
             />
           </div>
-        </div>
+        </div>}
 
         <div
           ref={questionsSectionRef}

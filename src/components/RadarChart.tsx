@@ -1,6 +1,25 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import type { Axis, Scores, SubStatus } from "../types";
 
+function scoreColor(ratio: number): string {
+  // 0 → rouge opaque, 0.5 → gris transparent, 1 → vert opaque
+  const dist = Math.abs(ratio - 0.5) * 2; // 0 au milieu, 1 aux extrêmes
+  const alpha = 0.25 + dist * 0.75;       // 0.25 au centre, 1.0 aux bords
+  if (ratio < 0.5) {
+    const t = ratio * 2; // 0→1
+    const r = Math.round(220 + (160 - 220) * t);
+    const g = Math.round(38  + (160 - 38 ) * t);
+    const b = Math.round(38  + (160 - 38 ) * t);
+    return `rgba(${r},${g},${b},${alpha.toFixed(2)})`;
+  } else {
+    const t = (ratio - 0.5) * 2; // 0→1
+    const r = Math.round(160 + (5   - 160) * t);
+    const g = Math.round(160 + (150 - 160) * t);
+    const b = Math.round(160 + (105 - 160) * t);
+    return `rgba(${r},${g},${b},${alpha.toFixed(2)})`;
+  }
+}
+
 const SI_COLORS: Record<"ACQUIS" | "EN_COURS" | "NON_ACQUIS", { selected: string; unselected: string; stroke: string }> = {
   ACQUIS:    { selected: "#059669", unselected: "#a7f3d0", stroke: "#065f46" },
   EN_COURS:  { selected: "#d97706", unselected: "#fde68a", stroke: "#92400e" },
@@ -42,7 +61,7 @@ export function RadarChart({
   const center = 500;
   const radius = 210;
   const lblRadX = radius + 140; // horizontal clearance (wider for ±0°/180° axes)
-  const lblRadY = radius + 70;  // vertical clearance (closer for top/bottom axes)
+  const lblRadY = radius + 30;  // vertical clearance — réduit pour coller au cercle
 
   const svgRef = useRef<SVGSVGElement | null>(null);
   const lockedAxisIndex = useRef<number | null>(null);
@@ -168,10 +187,9 @@ export function RadarChart({
   return (
     <div className="flex w-full justify-center">
       <div className="w-full max-w-[1000px] rounded-3xl border border-slate-200 bg-white p-4 shadow-inner">
-        {/* Instructions + légende au-dessus du radar */}
-        <div className="mb-3 space-y-2 border-b border-slate-100 pb-3">
-          {/* Instruction radar : toujours visible */}
-          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5 text-[11px] text-slate-600">
+        {/* Instructions radar — ligne compacte au-dessus */}
+        <div className="mb-1 border-b border-slate-100 pb-1">
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-[11px] text-slate-600">
             <span className="flex items-center gap-1.5">
               <span className="inline-block h-3 w-3 rounded-full bg-blue-600" />
               <span>Glissez le <strong>point bleu</strong> sur chaque axe pour noter</span>
@@ -179,41 +197,19 @@ export function RadarChart({
             <span className="text-slate-300">|</span>
             <span className="flex items-center gap-1.5">
               <span className="inline-block h-3 w-3 rounded-full border-2 border-slate-300 bg-white" />
-              <span><strong>Centre = 0</strong> &nbsp;—&nbsp; <strong>Extrémité = note maximale</strong></span>
+              <span><strong>Centre = 0</strong> &nbsp;—&nbsp; <strong>Extrémité = max</strong></span>
             </span>
             <span className="text-slate-300">|</span>
             <span className="flex items-center gap-1.5">
               <svg width="14" height="14" viewBox="0 0 14 14"><polygon points="7,1 13,5 11,12 3,12 1,5" fill="rgba(37,99,235,0.2)" stroke="#2563eb" strokeWidth="1.5"/></svg>
-              <span>La <strong>surface bleue</strong> représente la note moyenne globale</span>
+              <span>La <strong>surface bleue</strong> = note globale</span>
             </span>
           </div>
-          {/* Légende sous-indicateurs : uniquement si des sous-indicateurs existent */}
-          {hasSubItems && (
-            <div className="space-y-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
-              <p className="text-center text-[11px] font-semibold text-amber-800">
-                ↓ Pour chaque sous-indicateur (fond jaune = non renseigné), cliquez sur un cercle :
-              </p>
-              <div className="flex flex-wrap items-center justify-center gap-5 text-xs">
-                <div className="flex items-center gap-1.5">
-                  <span className="inline-block h-5 w-5 flex-shrink-0 rounded-full border-2 border-[#065f46] bg-[#059669]" />
-                  <span className="font-semibold text-[#065f46]">Acquis</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="inline-block h-5 w-5 flex-shrink-0 rounded-full border-2 border-[#92400e] bg-[#d97706]" />
-                  <span className="font-semibold text-[#92400e]">En cours d'acquisition</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="inline-block h-5 w-5 flex-shrink-0 rounded-full border-2 border-[#7f1d1d] bg-[#dc2626]" />
-                  <span className="font-semibold text-[#7f1d1d]">Non acquis</span>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
         <svg
           ref={svgRef}
-          viewBox="0 0 1000 1000"
-          className={`h-auto w-full ${hoveredAxisIndex !== null ? "cursor-grab" : "cursor-not-allowed"} select-none touch-none`}
+          viewBox="0 50 1000 870"
+          className={`w-full h-[46vh] min-h-[320px] ${hoveredAxisIndex !== null ? "cursor-grab" : "cursor-not-allowed"} select-none touch-none`}
           onMouseDown={onRadarMouseDown}
           onMouseMove={onRadarMouseMove}
           onMouseUp={onRadarMouseUp}
@@ -248,15 +244,17 @@ export function RadarChart({
 
             const siItems = a.subItems || [];
             const siCount = siItems.length;
-            const siRowH = 46;
+            const siRowH = 58;
             const siAreaH = siCount > 0 ? siCount * siRowH + 4 : 0;
+            const hasExtra = showBareme || showPercent; // barème line takes extra space
+            const titleBlockH = hasExtra ? 58 : 38; // title + optional barème
             // Box shifts up for upper-half axes so sub-items don't overlap radar
             const flipUp = siCount > 0 && Math.sin(rad) < -0.1;
-            const rectY = flipUp ? ly - 24 - siAreaH : ly - 24;
-            const rectH = 40 + siAreaH;
-            // Title always at top of box, sub-items always below title
-            const titleY = rectY + 18;
-            const siBaseY = rectY + 40;
+            const rectY = flipUp ? ly - 24 - siAreaH - titleBlockH + 14 : ly - 24;
+            const rectH = titleBlockH + siAreaH;
+            const titleY = rectY + 24;
+            const baremeY = rectY + 46;
+            const siBaseY = rectY + titleBlockH;
 
             const radarEdgeX = center + radius * Math.cos(rad);
             const radarEdgeY = center + radius * Math.sin(rad);
@@ -266,8 +264,8 @@ export function RadarChart({
                 <line
                   x1={center} y1={center}
                   x2={radarEdgeX} y2={radarEdgeY}
-                  stroke={isHighlighted ? "#60a5fa" : "#e2e8f0"}
-                  strokeWidth={isHighlighted ? 3 : 1}
+                  stroke={(isHighlighted || touched[a.id]) ? scoreColor(a.max > 0 ? (scores[a.id] || 0) / a.max : 0) : "#e2e8f0"}
+                  strokeWidth={isHighlighted ? 5 : touched[a.id] ? 3 : 1.5}
                 />
 
                 {/* Groupe label : stopPropagation pour éviter le déclenchement du radar */}
@@ -285,15 +283,15 @@ export function RadarChart({
                   opacity={0.95}
                 />
 
-                <text x={lx} y={titleY} fontSize={18} fontWeight={800} textAnchor="middle" fill="#64748b">
+                <text x={lx} y={titleY} fontSize={24} fontWeight={800} textAnchor="middle" fill="#64748b">
                   {a.label}
                 </text>
 
                 {(showBareme || showPercent) && (
-                  <text x={lx} y={ly + 10} fontSize={11} fontWeight={700} textAnchor="middle" fill="#94a3b8">
+                  <text x={lx} y={baremeY} fontSize={18} fontWeight={700} textAnchor="middle" fill="#94a3b8">
                     {showBareme
                       ? `Barème: ${a.max.toFixed(1)}`
-                      : `${Math.round((a.max / axesMaxSum) * 100)}% de la note finale`}
+                      : `${Math.round((a.max / axesMaxSum) * 100)}%`}
                   </text>
                 )}
 
@@ -320,13 +318,13 @@ export function RadarChart({
                         return (
                           <text
                             x={lx}
-                            fontSize={14}
+                            fontSize={18}
                             fontWeight={700}
                             textAnchor="middle"
                             fill={isUntouched ? "#92400e" : "#1e293b"}
                           >
-                            <tspan x={lx} y={rowY + (line2 ? 11 : 16)}>{line1}</tspan>
-                            {line2 && <tspan x={lx} dy={14}>{line2}</tspan>}
+                            <tspan x={lx} y={rowY + (line2 ? 13 : 20)}>{line1}</tspan>
+                            {line2 && <tspan x={lx} dy={18}>{line2}</tspan>}
                           </text>
                         );
                       })()}
@@ -334,7 +332,7 @@ export function RadarChart({
                         const col = SI_COLORS[targetStatus];
                         const isSelected = currentStatus === targetStatus;
                         const cx = lx - 24 + ci * 24;
-                        const cy = rowY + (wrapLabel(si.label)[1] ? 38 : 34);
+                        const cy = rowY + (wrapLabel(si.label)[1] ? 50 : 42);
                         return (
                           <g key={targetStatus}>
                             {/* Halo blanc derrière le cercle sélectionné pour le faire ressortir */}
@@ -397,6 +395,28 @@ export function RadarChart({
           })}
         </svg>
 
+        {/* Légende sous-indicateurs — sous le radar pour ne pas chevaucher l'axe supérieur */}
+        {hasSubItems && (
+          <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+            <p className="mb-1 text-center text-[11px] font-semibold text-amber-800">
+              Pour chaque sous-indicateur (fond jaune = non renseigné), cliquez sur un cercle :
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-5 text-xs">
+              <div className="flex items-center gap-1.5">
+                <span className="inline-block h-5 w-5 flex-shrink-0 rounded-full border-2 border-[#065f46] bg-[#059669]" />
+                <span className="font-semibold text-[#065f46]">Acquis</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="inline-block h-5 w-5 flex-shrink-0 rounded-full border-2 border-[#92400e] bg-[#d97706]" />
+                <span className="font-semibold text-[#92400e]">En cours d'acquisition</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="inline-block h-5 w-5 flex-shrink-0 rounded-full border-2 border-[#7f1d1d] bg-[#dc2626]" />
+                <span className="font-semibold text-[#7f1d1d]">Non acquis</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
