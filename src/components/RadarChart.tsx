@@ -90,6 +90,14 @@ export function RadarChart({
   const lockedAxisIndex = useRef<number | null>(null);
   const clampWarnShownRef = useRef(false);
   const [hoveredAxisIndex, setHoveredAxisIndex] = useState<number | null>(null);
+  const [focusedAxisIndex, setFocusedAxisIndex] = useState<number | null>(null);
+  const [zoomScale, setZoomScale] = useState(1);
+  const pinchStartDist = useRef<number | null>(null);
+  const pinchStartScale = useRef<number>(1);
+
+  const vibrate = (ms = 30) => {
+    if (navigator.vibrate) navigator.vibrate(ms);
+  };
 
   const angleForIndex = (i: number, n: number) => -90 + (360 / n) * i;
 
@@ -126,6 +134,21 @@ export function RadarChart({
       return { idx: minDiff <= toleranceDeg ? closestIdx : -1, diff: minDiff };
     },
     [axes.length],
+  );
+
+  const updateLockedAxisByIndex = useCallback(
+    (idx: number, newVal: number) => {
+      const axis = axes[idx];
+      const mid = axis.max / 2;
+      const siItems = axis.subItems ?? [];
+      if (siItems.length > 0) {
+        if (allAcquis(axis.id) && newVal < mid) return;
+        if (allNonAcquis(axis.id) && newVal > mid) return;
+      }
+      setScores(prev => ({ ...prev, [axis.id]: newVal }));
+      setTouched(prev => ({ ...prev, [axis.id]: true }));
+    },
+    [axes, allAcquis, allNonAcquis, setScores, setTouched],
   );
 
   const updateLockedAxis = useCallback(
@@ -189,7 +212,19 @@ export function RadarChart({
   const onRadarMouseUp = () => { lockedAxisIndex.current = null; };
   const onRadarMouseLeave = () => { lockedAxisIndex.current = null; setHoveredAxisIndex(null); };
 
+  const pinchDist = (touches: React.TouchList) => {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
   const onRadarTouchStart = (e: React.TouchEvent<SVGSVGElement>) => {
+    if (e.touches.length === 2) {
+      pinchStartDist.current = pinchDist(e.touches);
+      pinchStartScale.current = zoomScale;
+      lockedAxisIndex.current = null;
+      return;
+    }
     const t = e.touches[0];
     const { x, y } = svgCoords(t.clientX, t.clientY);
     const { idx, diff } = findClosestAxis(x, y, 25);
@@ -197,18 +232,67 @@ export function RadarChart({
       lockedAxisIndex.current = idx;
       clampWarnShownRef.current = false;
       setHoveredAxisIndex(idx);
+      setFocusedAxisIndex(idx);
+      vibrate(30);
       updateLockedAxis(x, y);
     }
   };
 
   const onRadarTouchMove = (e: React.TouchEvent<SVGSVGElement>) => {
+    if (e.touches.length === 2 && pinchStartDist.current !== null) {
+      e.preventDefault();
+      const ratio = pinchDist(e.touches) / pinchStartDist.current;
+      const next = Math.min(4, Math.max(0.5, pinchStartScale.current * ratio));
+      setZoomScale(next);
+      return;
+    }
     if (lockedAxisIndex.current === null) return;
     const t = e.touches[0];
     const { x, y } = svgCoords(t.clientX, t.clientY);
     updateLockedAxis(x, y);
   };
 
-  const onRadarTouchEnd = () => { lockedAxisIndex.current = null; setHoveredAxisIndex(null); };
+  const onRadarTouchEnd = () => {
+    pinchStartDist.current = null;
+    lockedAxisIndex.current = null;
+    setHoveredAxisIndex(null);
+  };
+
+  // Navigation clavier : Tab/Maj+Tab = changer d'axe, flèches = ajuster le score
+  const onKeyDown = (e: React.KeyboardEvent<SVGSVGElement>) => {
+    const n = axes.length;
+    if (n === 0) return;
+
+    if (e.key === "Tab") {
+      e.preventDefault();
+      setFocusedAxisIndex(prev => {
+        if (prev === null) return 0;
+        return e.shiftKey ? (prev - 1 + n) % n : (prev + 1) % n;
+      });
+      return;
+    }
+
+    const idx = focusedAxisIndex;
+    if (idx === null) return;
+    const axis = axes[idx];
+    const step = axis.max / 10;
+
+    if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const cur = scores[axis.id] ?? 0;
+      const next = Math.min(axis.max, Math.round((cur + step) * 10) / 10);
+      clampWarnShownRef.current = false;
+      updateLockedAxisByIndex(idx, next);
+      vibrate(20);
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+      e.preventDefault();
+      const cur = scores[axis.id] ?? 0;
+      const next = Math.max(0, Math.round((cur - step) * 10) / 10);
+      clampWarnShownRef.current = false;
+      updateLockedAxisByIndex(idx, next);
+      vibrate(20);
+    }
+  };
 
   const radarPoints = useMemo(
     () =>
@@ -274,10 +358,27 @@ export function RadarChart({
             </span>
           </div>
         </div>
+        {zoomScale !== 1 && (
+          <div className="mb-1 flex justify-center">
+            <button
+              type="button"
+              onClick={() => setZoomScale(1)}
+              className="rounded-full border border-slate-200 bg-slate-50 px-3 py-0.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-100"
+            >
+              Réinitialiser zoom ({Math.round(zoomScale * 100)} %)
+            </button>
+          </div>
+        )}
         <svg
           ref={svgRef}
-          viewBox="-150 -50 1300 1100"
-          className={`h-auto w-full ${hoveredAxisIndex !== null ? "cursor-grab" : "cursor-not-allowed"} select-none touch-none`}
+          viewBox={(() => {
+            const w = 1300 / zoomScale;
+            const h = 1100 / zoomScale;
+            return `${500 - w / 2} ${500 - h / 2} ${w} ${h}`;
+          })()}
+          className={`h-auto w-full ${hoveredAxisIndex !== null ? "cursor-grab" : "cursor-not-allowed"} select-none touch-none outline-none`}
+          tabIndex={0}
+          onKeyDown={onKeyDown}
           onMouseDown={onRadarMouseDown}
           onMouseMove={onRadarMouseMove}
           onMouseUp={onRadarMouseUp}
@@ -445,11 +546,18 @@ export function RadarChart({
             strokeLinejoin="round"
           />
 
-          {axes.map(a => {
-            const i = axes.findIndex(x => x.id === a.id);
+          {axes.map((a, i) => {
             const angle = angleForIndex(i, axes.length);
             const coords = getPointCoords(scores[a.id] || 0, a.max, angle);
-            return <circle key={a.id} cx={coords.x} cy={coords.y} r={4} fill="#2563eb" />;
+            const isFocused = focusedAxisIndex === i;
+            return (
+              <g key={a.id}>
+                {isFocused && (
+                  <circle cx={coords.x} cy={coords.y} r={14} fill="rgba(99,102,241,0.25)" stroke="#6366f1" strokeWidth={2} />
+                )}
+                <circle cx={coords.x} cy={coords.y} r={isFocused ? 6 : 4} fill={isFocused ? "#6366f1" : "#2563eb"} />
+              </g>
+            );
           })}
         </svg>
 

@@ -5,32 +5,22 @@ import type { AppRoute } from "../types";
 import { useEvalStore } from "../hooks/useEvalStore";
 import { RecapTable } from "../components/RecapTable";
 import { buildRecapXlsxBuffer } from "../utils/recapXlsx";
-import { buildNotesFolder, buildExportFileName, saveFileToFolder } from "../utils/exportFolder";
+import { buildNotesPath, buildExportFileName, saveFileToFolder } from "../utils/exportFolder";
 import { useDialogs } from "../components/Dialogs";
 
 interface Props {
-  initialEvalId?: string;
   onNavigate: (route: AppRoute) => void;
 }
 
-export function RecapSelectPage({ initialEvalId, onNavigate }: Props) {
-  const { configs, promotionsAvailable } = useEvalStore();
+export function RecapSelectPage({ onNavigate }: Props) {
+  const { configs, promotionsAvailable, getSessionForConfig } = useEvalStore();
   const { notify } = useDialogs();
 
-  const [selectedPromo, setSelectedPromo] = useState<string>(() => {
-    if (initialEvalId) {
-      const cfg = configs.find(c => c.id === initialEvalId);
-      return cfg?.promotion ?? promotionsAvailable[0] ?? "";
-    }
-    return promotionsAvailable[0] ?? "";
-  });
+  const [selectedPromo, setSelectedPromo] = useState<string>(promotionsAvailable[0] ?? "");
 
   const configsForPromo = configs.filter(c => !selectedPromo || c.promotion === selectedPromo);
 
-  const [selectedEvalId, setSelectedEvalId] = useState<string>(() => {
-    if (initialEvalId && configs.find(c => c.id === initialEvalId)) return initialEvalId;
-    return configsForPromo[0]?.id ?? "";
-  });
+  const [selectedEvalId, setSelectedEvalId] = useState<string>(configsForPromo[0]?.id ?? "");
 
   const selectedConfig = configs.find(c => c.id === selectedEvalId);
   const evals = selectedConfig?.savedEvaluations ?? [];
@@ -42,7 +32,10 @@ export function RecapSelectPage({ initialEvalId, onNavigate }: Props) {
       const promo = selectedConfig?.promotion ?? "inconnu";
       const ue = selectedConfig?.ue ?? "recap";
       const date = evals[0]?.date ?? new Date().toISOString().split("T")[0];
-      const notesDir = buildNotesFolder(promo, ue);
+      const sessionDate = selectedEvalId
+        ? (getSessionForConfig(selectedEvalId)?.date ?? date)
+        : date;
+      const notesDir = buildNotesPath(promo, sessionDate, ue);
       const fileName = buildExportFileName(ue, date, ".xlsx");
 
       // Sauvegarde sur la clé USB via Tauri (non-bloquant si hors Tauri)

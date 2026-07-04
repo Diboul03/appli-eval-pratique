@@ -1,19 +1,108 @@
-import { useState } from "react";
-import { PlusCircle, Pencil, CalendarDays, BarChart2, FlaskConical, ArrowLeft, KeyRound } from "lucide-react";
+import { useMemo, useState } from "react";
+import { PlusCircle, CalendarDays, BarChart2, ArrowLeft, KeyRound, ClipboardList, History, Search, Users, BookOpen } from "lucide-react";
 import { logoDataUri } from "../assets/logo";
-import type { AppRoute } from "../types";
+import type { AppRoute, EvalConfig } from "../types";
 import { useEvalStore } from "../hooks/useEvalStore";
+import { auditLog, getAuditLog, clearAuditLog } from "../utils/auditLog";
+import type { AuditEntry } from "../utils/auditLog";
 import { useLocalStorage } from "../hooks/useLocalStorage";
+
+function StudentHistory({ configs }: { configs: EvalConfig[] }) {
+  const [query, setQuery] = useState("");
+
+  const allEvals = useMemo(() =>
+    configs.flatMap(cfg =>
+      cfg.savedEvaluations.map(ev => ({ ...ev, configUe: cfg.ue, configPromotion: cfg.promotion }))
+    ),
+    [configs]
+  );
+
+  const studentNames = useMemo(() => {
+    const names = new Set<string>();
+    allEvals.forEach(ev => names.add(`${ev.student.nom} ${ev.student.prenom}`));
+    return [...names].sort((a, b) => a.localeCompare(b, "fr"));
+  }, [allEvals]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return studentNames.filter(n => n.toLowerCase().includes(q));
+  }, [query, studentNames]);
+
+  const selected = filtered.length === 1 ? filtered[0] : null;
+  const history = useMemo(() => {
+    if (!selected) return [];
+    return allEvals
+      .filter(ev => `${ev.student.nom} ${ev.student.prenom}` === selected)
+      .sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
+  }, [selected, allEvals]);
+
+  return (
+    <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
+      <p className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-white/30">
+        <History size={12} /> Historique étudiant multi-UEs
+      </p>
+      <div className="relative mb-3">
+        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+        <input
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Rechercher un étudiant…"
+          className="w-full rounded-xl border border-white/10 bg-white/10 py-2 pl-8 pr-4 text-sm text-white placeholder:text-white/20 focus:border-amber-400/50 focus:outline-none"
+        />
+      </div>
+      {query.trim() && filtered.length > 1 && (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {filtered.map(name => (
+            <button
+              key={name}
+              type="button"
+              onClick={() => setQuery(name)}
+              className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-white/50 hover:bg-white/10"
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
+      {selected && history.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-bold text-white/60">{selected} — {history.length} évaluation{history.length > 1 ? "s" : ""}</p>
+          {history.map(ev => (
+            <div key={ev.id} className="flex items-center justify-between rounded-xl border border-white/5 bg-white/5 px-4 py-2">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-white/30">{ev.configPromotion}</div>
+                <div className="text-sm font-semibold text-white/80">{ev.configUe || ev.ue}</div>
+                <div className="text-[10px] text-white/30">{ev.date ? new Date(ev.date).toLocaleDateString("fr-FR") : "—"}</div>
+              </div>
+              <div className={`text-lg font-black tabular-nums ${ev.total20 >= 10 ? "text-emerald-400" : "text-red-400"}`}>
+                {ev.total20.toFixed(1)}<span className="text-xs font-normal text-white/30">/20</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {selected && history.length === 0 && (
+        <p className="text-center text-xs text-white/30">Aucune évaluation enregistrée pour cet étudiant.</p>
+      )}
+    </div>
+  );
+}
 
 interface Props {
   onNavigate: (route: AppRoute) => void;
 }
 
 export function AdminHomePage({ onNavigate }: Props) {
-  const { configs } = useEvalStore();
+  const { configs, sessions, createSession, getConfigsForSession } = useEvalStore();
+  const [showNewSession, setShowNewSession] = useState(false);
+  const [newSessionDate, setNewSessionDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [newSessionName, setNewSessionName] = useState("");
   const [adminPassword] = useLocalStorage<string>("adminPassword", "0405");
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
+  const [showAudit, setShowAudit] = useState(false);
+  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
   const [authenticated, setAuthenticated] = useState(
     () => sessionStorage.getItem("adminAuth") === "1"
   );
@@ -21,6 +110,7 @@ export function AdminHomePage({ onNavigate }: Props) {
   const validate = () => {
     if (code.trim() === adminPassword) {
       sessionStorage.setItem("adminAuth", "1");
+      auditLog("Connexion admin");
       setAuthenticated(true);
       setError("");
       setCode("");
@@ -77,51 +167,14 @@ export function AdminHomePage({ onNavigate }: Props) {
     );
   }
 
-  const actions = [
-    {
-      key: "create",
-      icon: <PlusCircle size={32} strokeWidth={1.5} />,
-      label: "Nouvelle évaluation",
-      description: "Créer et configurer une nouvelle éval",
-      iconCls: "bg-emerald-400/10 text-emerald-400",
-      labelCls: "text-emerald-300",
-      cardCls: "border-emerald-400/20 hover:border-emerald-400/50",
-      onClick: () => onNavigate({ page: "admin-create" }),
-    },
-    {
-      key: "edit",
-      icon: <Pencil size={32} strokeWidth={1.5} />,
-      label: "Modifier une évaluation",
-      description: `${configs.length} éval${configs.length !== 1 ? "s" : ""} existante${configs.length !== 1 ? "s" : ""}`,
-      iconCls: "bg-blue-400/10 text-blue-400",
-      labelCls: "text-blue-300",
-      cardCls: "border-blue-400/20 hover:border-blue-400/50",
-      onClick: () => configs.length > 0 && onNavigate({ page: "admin-edit", evalId: configs[0].id }),
-      disabled: configs.length === 0,
-    },
-    {
-      key: "bdd",
-      icon: <CalendarDays size={32} strokeWidth={1.5} />,
-      label: "Créer des BDD",
-      description: "Planifier les passages par promotion",
-      iconCls: "bg-indigo-400/10 text-indigo-400",
-      labelCls: "text-indigo-300",
-      cardCls: "border-indigo-400/20 hover:border-indigo-400/50",
-      onClick: () => onNavigate({ page: "admin-bdd" }),
-      disabled: configs.length === 0,
-    },
-    {
-      key: "recap",
-      icon: <BarChart2 size={32} strokeWidth={1.5} />,
-      label: "Récapitulatif des notes",
-      description: "Tableau de bord et export Excel",
-      iconCls: "bg-amber-400/10 text-amber-400",
-      labelCls: "text-amber-300",
-      cardCls: "border-amber-400/20 hover:border-amber-400/50",
-      onClick: () => onNavigate({ page: "admin-recap", evalId: configs[0]?.id ?? "" }),
-      disabled: configs.length === 0,
-    },
-  ];
+  const handleCreateSession = () => {
+    if (!newSessionDate) return;
+    const s = createSession(newSessionDate, newSessionName);
+    auditLog("Créer session", s.name);
+    setShowNewSession(false);
+    setNewSessionName("");
+    onNavigate({ page: "admin-session-detail", sessionId: s.id });
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-800">
@@ -140,7 +193,7 @@ export function AdminHomePage({ onNavigate }: Props) {
         </div>
         <button
           type="button"
-          onClick={() => onNavigate({ page: "admin-edit", evalId: "__password__" })}
+          onClick={() => {}}
           className="rounded-lg p-2 text-white/30 hover:bg-white/5 hover:text-white/60"
           title="Changer le mot de passe"
         >
@@ -149,41 +202,177 @@ export function AdminHomePage({ onNavigate }: Props) {
       </header>
 
       {/* Content */}
-      <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-10">
-        <h1 className="mb-8 text-center text-xl font-black uppercase tracking-tight text-white/80">
-          Mode Administrateur
-        </h1>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {actions.map(action => (
+      <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-8">
+        <div className="mb-6 flex items-center justify-between">
+          <h1 className="text-xl font-black uppercase tracking-tight text-white/80">Sessions d'évaluation</h1>
+          <div className="flex items-center gap-2">
             <button
-              key={action.key}
               type="button"
-              onClick={action.onClick}
-              disabled={"disabled" in action && action.disabled}
-              className={`group flex items-center gap-5 rounded-2xl border bg-white/5 p-6 text-left backdrop-blur-sm transition-all hover:bg-white/8 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-30 ${action.cardCls}`}
+              onClick={() => onNavigate({ page: "admin-bdd" })}
+              disabled={configs.length === 0}
+              className="flex items-center gap-1.5 rounded-xl border border-indigo-400/20 bg-indigo-400/10 px-3 py-2 text-xs font-bold text-indigo-300 hover:bg-indigo-400/20 disabled:opacity-30"
             >
-              <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl ${action.iconCls}`}>
-                {action.icon}
-              </div>
-              <div>
-                <div className={`font-black uppercase tracking-wide ${action.labelCls}`}>{action.label}</div>
-                <div className="mt-0.5 text-xs text-white/30">{action.description}</div>
-              </div>
+              <CalendarDays size={13} /> BDD
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={() => onNavigate({ page: "admin-recap" })}
+              disabled={configs.length === 0}
+              className="flex items-center gap-1.5 rounded-xl border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-300 hover:bg-amber-400/20 disabled:opacity-30"
+            >
+              <BarChart2 size={13} /> Récap
+            </button>
+          </div>
         </div>
 
-        <div className="mt-8 flex justify-center">
+        {/* Bouton nouvelle session */}
+        <button
+          type="button"
+          onClick={() => setShowNewSession(true)}
+          className="mb-6 flex w-full items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-emerald-500/30 bg-emerald-500/5 py-5 text-sm font-bold text-emerald-400 transition-all hover:border-emerald-500/60 hover:bg-emerald-500/10"
+        >
+          <PlusCircle size={20} /> Nouvelle session d'évaluation
+        </button>
+
+        {/* Liste des sessions */}
+        {sessions.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-white/10 p-12 text-center text-white/30">
+            <CalendarDays size={36} className="mx-auto mb-3 opacity-20" />
+            <p>Aucune session créée.</p>
+            <p className="mt-1 text-xs">Cliquez sur "Nouvelle session" pour commencer.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {sessions.map(session => {
+              const sessionConfigs = getConfigsForSession(session.id);
+              const totalStudents = sessionConfigs.reduce((s, c) => s + c.studentList.length, 0);
+              const totalDone = sessionConfigs.reduce((s, c) => s + c.savedEvaluations.length, 0);
+              const dateLabel = new Date(session.date + "T00:00:00").toLocaleDateString("fr-FR", {
+                weekday: "long", day: "numeric", month: "long", year: "numeric",
+              });
+              const allDone = totalStudents > 0 && totalDone >= totalStudents;
+              return (
+                <button
+                  key={session.id}
+                  type="button"
+                  onClick={() => onNavigate({ page: "admin-session-detail", sessionId: session.id })}
+                  className="flex w-full items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition-all hover:border-white/20 hover:bg-white/8 active:scale-[0.99]"
+                >
+                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${allDone ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-400/10 text-amber-400"}`}>
+                    <CalendarDays size={22} strokeWidth={1.5} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-white/30">{dateLabel}</div>
+                    <div className="truncate font-black uppercase tracking-wide text-white/90">{session.name}</div>
+                    <div className="mt-0.5 flex items-center gap-3 text-[11px] text-white/30">
+                      <span className="flex items-center gap-1"><BookOpen size={10} />{sessionConfigs.length} UE{sessionConfigs.length !== 1 ? "s" : ""}</span>
+                      <span className="flex items-center gap-1"><Users size={10} />{totalDone}/{totalStudents} évalués</span>
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-white/20">›</div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Historique étudiant multi-UEs */}
+        {configs.some(c => c.savedEvaluations.length > 0) && (
+          <StudentHistory configs={configs} />
+        )}
+
+        <div className="mt-6 flex justify-center">
           <button
             type="button"
-            onClick={() => onNavigate({ page: "admin-create" })}
+            onClick={() => { setAuditEntries(getAuditLog()); setShowAudit(true); }}
             className="flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2 text-xs text-white/20 hover:bg-white/5 hover:text-white/40"
           >
-            <FlaskConical size={13} /> Remplir test
+            <ClipboardList size={13} /> Journal d'activité
           </button>
         </div>
       </main>
+
+      {/* Modal nouvelle session */}
+      {showNewSession && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setShowNewSession(false)}>
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-900 p-6" onClick={e => e.stopPropagation()}>
+            <h2 className="mb-4 text-sm font-black uppercase tracking-widest text-white/70">Nouvelle session d'évaluation</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-white/40">Date de la session</label>
+                <input
+                  type="date"
+                  value={newSessionDate}
+                  onChange={e => setNewSessionDate(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-white focus:border-emerald-400/60 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-white/40">Nom (optionnel)</label>
+                <input
+                  type="text"
+                  value={newSessionName}
+                  onChange={e => setNewSessionName(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") handleCreateSession(); }}
+                  placeholder="Ex. : Épreuves pratiques PCEO2"
+                  className="w-full rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-white placeholder:text-white/20 focus:border-emerald-400/60 focus:outline-none"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="mt-5 flex gap-2">
+              <button onClick={() => setShowNewSession(false)} className="flex-1 rounded-xl border border-white/10 py-2.5 text-sm text-white/40 hover:bg-white/5">Annuler</button>
+              <button onClick={handleCreateSession} disabled={!newSessionDate} className="flex-1 rounded-xl bg-emerald-500 py-2.5 text-sm font-bold text-white hover:bg-emerald-400 disabled:opacity-30">Créer la session →</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal journal d'audit */}
+      {showAudit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-slate-900 p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-sm font-black uppercase tracking-widest text-white/70">Journal d'activité admin</h2>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { clearAuditLog(); setAuditEntries([]); }}
+                  className="rounded-lg px-3 py-1 text-xs text-red-400/60 hover:bg-red-400/10"
+                >
+                  Effacer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAudit(false)}
+                  className="rounded-lg px-3 py-1 text-xs text-white/40 hover:bg-white/10"
+                >
+                  Fermer
+                </button>
+              </div>
+            </div>
+            {auditEntries.length === 0 ? (
+              <p className="text-center text-xs text-white/30 py-6">Aucune entrée</p>
+            ) : (
+              <div className="max-h-80 overflow-y-auto space-y-1">
+                {auditEntries.map((e, i) => {
+                  const d = new Date(e.ts);
+                  const fmt = `${d.toLocaleDateString("fr-FR")} ${d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
+                  return (
+                    <div key={i} className="flex items-start gap-3 rounded-lg bg-white/5 px-3 py-2">
+                      <span className="shrink-0 text-[10px] text-white/30 pt-0.5">{fmt}</span>
+                      <div>
+                        <span className="text-xs font-bold text-white/70">{e.action}</span>
+                        {e.detail && <span className="ml-2 text-[10px] text-white/40">{e.detail}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -100,14 +100,14 @@ export function StickyHeader({
           </div>
           <div className="h-6 w-px bg-white/30" />
           <div className="flex flex-col leading-tight">
-            <span className="text-xs font-semibold text-white/80">
+            <span className="text-xl font-black uppercase tracking-tight text-white drop-shadow">
               {studentData.civilite ? `${studentData.civilite} ` : ""}
               {studentData.nom} {studentData.prenom}
             </span>
-            <span className="text-[10px] text-white/60">
+            <span className="text-sm font-bold text-white/80">
               {studentData.ue && <span>{studentData.ue}</span>}
-              {studentData.ue && totalStudentsCount > 0 && <span className="mx-1">·</span>}
-              {totalStudentsCount > 0 && <span>{studentsEvaluatedCount}/{totalStudentsCount} évalués</span>}
+              {studentData.ue && totalStudentsCount > 0 && <span className="mx-1.5 opacity-50">·</span>}
+              {totalStudentsCount > 0 && <span className="text-white/50">{studentsEvaluatedCount}/{totalStudentsCount} évalués</span>}
             </span>
           </div>
         </div>

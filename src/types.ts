@@ -67,6 +67,15 @@ export interface BddScheduleEntry {
   date: string;    // ISO date "YYYY-MM-DD"
 }
 
+export interface EvalSession {
+  id: string;
+  name: string;       // ex. "Session Mardi 15 mars"
+  date: string;       // YYYY-MM-DD
+  configIds: string[]; // IDs des EvalConfig de cette session
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface EvalConfig {
   id: string;
   promotion: string;
@@ -86,6 +95,7 @@ export interface EvalConfig {
   showPercentToEvaluator: boolean;
   savedEvaluations: SavedEvaluation[];
   bddSchedule?: BddScheduleEntry[];
+  sessionId?: string; // référence à l'EvalSession parente
   createdAt: string;
   updatedAt: string;
 }
@@ -93,10 +103,11 @@ export interface EvalConfig {
 export type AppRoute =
   | { page: "home" }
   | { page: "admin-home" }
-  | { page: "admin-create" }
-  | { page: "admin-edit"; evalId: string }
+  | { page: "admin-session-detail"; sessionId: string }
+  | { page: "admin-create"; sessionId: string }
+  | { page: "admin-edit"; evalId: string; sessionId: string }
   | { page: "admin-bdd" }
-  | { page: "admin-recap"; evalId: string }
+  | { page: "admin-recap" }
   | { page: "admin-preview"; config: EvalConfig; backRoute: AppRoute }
   | { page: "eval-select-evaluator" }
   | { page: "eval-select-ue"; evaluatorKey: string }

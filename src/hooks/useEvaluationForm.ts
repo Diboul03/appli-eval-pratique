@@ -367,6 +367,7 @@ export function useEvaluationForm() {
     }));
     setLoadedStudentKey(null);
     setSelectedSavedId("");
+    try { window.localStorage.removeItem("currentEvaluationDraft"); } catch { /* ignore */ }
   }, [resetEvaluationForm]);
 
   const saveCurrentEvaluation = useCallback(async () => {
@@ -419,6 +420,7 @@ export function useEvaluationForm() {
     }
 
     setExportDateTime({ date: formatDate(now), time: formatTime(now) });
+    try { window.localStorage.removeItem("currentEvaluationDraft"); } catch { /* ignore */ }
     return { item, newAllEvals };
   }, [studentData, combinedRemarks, remarksPositive, remarksImprovement, signatureImage, axes, scores, subChecks, subComments, drawPersisted, total20, timer.elapsedMs, setSavedEvaluations, notify]);
 

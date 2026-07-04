@@ -1,20 +1,33 @@
-import { ShieldCheck, ClipboardCheck } from "lucide-react";
+import { ShieldCheck, ClipboardCheck, Moon, Sun } from "lucide-react";
 import { logoDataUri } from "../assets/logo";
 import type { AppRoute } from "../types";
+import { useDarkMode } from "../hooks/useDarkMode";
 
 interface Props {
   onNavigate: (route: AppRoute) => void;
 }
 
 export function HomePage({ onNavigate }: Props) {
+  const [dark, toggleDark] = useDarkMode();
+
   return (
     <div className="flex min-h-screen flex-col bg-slate-800">
       {/* Header */}
       <header className="flex items-center justify-between border-b border-white/10 px-6 py-4">
         <img src={logoDataUri} alt="Logo IFSO" className="h-10 w-auto brightness-0 invert opacity-80" />
-        <span className="text-[10px] font-bold uppercase tracking-widest text-white/30">
-          IFSO Vichy · Clermont-Ferrand
-        </span>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={toggleDark}
+            title={dark ? "Passer en mode clair" : "Passer en mode sombre"}
+            className="rounded-full p-2 text-white/30 hover:bg-white/10 hover:text-white/60 transition-colors"
+          >
+            {dark ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-white/30">
+            IFSO Vichy · Clermont-Ferrand
+          </span>
+        </div>
       </header>
 
       {/* Main */}
@@ -68,7 +81,7 @@ export function HomePage({ onNavigate }: Props) {
       </main>
 
       <footer className="py-4 text-center text-[10px] uppercase tracking-widest text-white/20">
-        v0.5.0
+        v0.6.0
       </footer>
     </div>
   );

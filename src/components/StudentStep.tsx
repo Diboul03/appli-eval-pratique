@@ -66,21 +66,23 @@ export function StudentStep({
                 </option>
               ))}
           </select>
-          {studentData.civilite && (
+          {scheduledEntry && (
+            <div className="mt-2 flex items-center gap-3 rounded-xl border-2 border-indigo-300 bg-indigo-100 px-4 py-3 shadow-sm">
+              <Clock size={20} className="shrink-0 text-indigo-600" />
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-widest text-indigo-500">Heure de passage prévue</div>
+                <div className="text-lg font-black text-indigo-900">{scheduledEntry.heure}
+                  <span className="ml-2 text-xs font-semibold text-indigo-500">
+                    {scheduledEntry.period === "matin" ? "Matin" : "Après-midi"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+          {studentData.civilite && !scheduledEntry && (
             <p className="mt-1 text-[10px] text-slate-600">
               Civilité : <span className="font-bold">{studentData.civilite}</span>
             </p>
-          )}
-          {scheduledEntry && (
-            <div className="mt-2 flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2">
-              <Clock size={13} className="shrink-0 text-indigo-500" />
-              <span className="text-xs font-bold text-indigo-800">
-                Heure de passage prévue : {scheduledEntry.heure}
-                <span className="ml-2 text-[10px] font-normal text-indigo-500">
-                  ({scheduledEntry.period === "matin" ? "Matin" : "Après-midi"})
-                </span>
-              </span>
-            </div>
           )}
         </div>
 

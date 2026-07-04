@@ -3,7 +3,7 @@ import ExcelJS from "exceljs";
 import { logoDataUri } from "../assets/logo";
 import { Button } from "./Button";
 import { useDialogs } from "./Dialogs";
-import { buildBddFolder, buildExportFileName, saveFileToFolder } from "../utils/exportFolder";
+import { buildBddPath, buildExportFileName, saveFileToFolder } from "../utils/exportFolder";
 
 interface Student {
   civilite?: string;
@@ -120,6 +120,14 @@ export function BddPanel({ studentList, defaultExaminer, examDurationMinutes, ue
     const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
     const [generated, setGenerated] = useState(false);
 
+    // Saisie manuelle
+    const [manualNom, setManualNom] = useState("");
+    const [manualPrenom, setManualPrenom] = useState("");
+    const [manualCivilite, setManualCivilite] = useState("M.");
+    const [manualHeure, setManualHeure] = useState("");
+    const [conflictWarning, setConflictWarning] = useState<string | null>(null);
+    const [pendingManualEntry, setPendingManualEntry] = useState<ScheduleEntry | null>(null);
+
     // Réagit au testTrigger même quand le composant vient d'être monté
     useEffect(() => {
       if (!testTrigger) return;
@@ -220,6 +228,63 @@ export function BddPanel({ studentList, defaultExaminer, examDurationMinutes, ue
       onScheduleGenerated?.(result.map(e => ({ ...e, date: jourPassage })));
     }, [canGenerate, studentList, examDurationMinutes, matinActive, matinDebut, matinFin, apremActive, apremDebut, apremFin, otherSchedules, jourPassage, onScheduleGenerated, notify]);
 
+    const checkAndAddManual = useCallback((forceOverride = false) => {
+      if (!manualNom.trim() || !manualHeure.match(/^\d{2}:\d{2}$/)) {
+        notify("Renseignez le nom et l'heure (HH:MM) de l'étudiant.", "error");
+        return;
+      }
+      const newMin = timeToMin(manualHeure);
+      const dur = examDurationMinutes > 0 ? examDurationMinutes : 15;
+
+      // Conflits dans le planning courant
+      const conflictsInSchedule = schedule.filter(e => {
+        const em = timeToMin(e.heure);
+        return Math.abs(em - newMin) < dur;
+      });
+
+      // Conflits dans les autres BDDs de la même promo
+      const conflictsExternal: string[] = [];
+      if (otherSchedules) {
+        for (const entries of otherSchedules) {
+          for (const e of entries) {
+            if (e.date === jourPassage && Math.abs(timeToMin(e.heure) - newMin) < dur) {
+              conflictsExternal.push(`${e.student.nom} ${e.student.prenom} — ${e.heure} (autre UE)`);
+            }
+          }
+        }
+      }
+
+      if (!forceOverride && (conflictsInSchedule.length > 0 || conflictsExternal.length > 0)) {
+        const msgs: string[] = [
+          ...conflictsInSchedule.map(e => `${e.student.nom} ${e.student.prenom} — ${e.heure} (ce planning)`),
+          ...conflictsExternal,
+        ];
+        setConflictWarning(`Conflit horaire détecté avec : ${msgs.join(", ")}`);
+        setPendingManualEntry({
+          student: { civilite: manualCivilite, nom: manualNom.toUpperCase().trim(), prenom: manualPrenom.trim() },
+          heure: manualHeure,
+          period: timeToMin(manualHeure) < 12 * 60 ? "matin" : "apmidi",
+        });
+        return;
+      }
+
+      const entry: ScheduleEntry = {
+        student: { civilite: manualCivilite, nom: manualNom.toUpperCase().trim(), prenom: manualPrenom.trim() },
+        heure: manualHeure,
+        period: timeToMin(manualHeure) < 12 * 60 ? "matin" : "apmidi",
+      };
+      const next = [...schedule, entry].sort((a, b) => timeToMin(a.heure) - timeToMin(b.heure));
+      setSchedule(next);
+      setGenerated(true);
+      onScheduleGenerated?.(next.map(e => ({ ...e, date: jourPassage })));
+      setManualNom("");
+      setManualPrenom("");
+      setManualHeure("");
+      setConflictWarning(null);
+      setPendingManualEntry(null);
+      notify(`${entry.student.nom} ${entry.student.prenom} ajouté à ${entry.heure}.`);
+    }, [manualNom, manualPrenom, manualCivilite, manualHeure, schedule, examDurationMinutes, otherSchedules, jourPassage, onScheduleGenerated, notify]);
+
     const exportXlsx = useCallback(async () => {
       if (schedule.length === 0) { notify("Générez d'abord le planning.", "error"); return; }
 
@@ -309,7 +374,7 @@ export function BddPanel({ studentList, defaultExaminer, examDurationMinutes, ue
       else if (buf instanceof Uint8Array) arrayBuf = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
       else arrayBuf = buf as ArrayBuffer;
 
-      const bddDir = buildBddFolder(ue, promotion);
+      const bddDir = buildBddPath(ue);
       const fileName = buildExportFileName(ue, jourPassage, ".xlsx");
 
       try {
@@ -407,6 +472,127 @@ export function BddPanel({ studentList, defaultExaminer, examDurationMinutes, ue
           </div>
         </div>
 
+        {/* ── Saisie manuelle ── indépendante de la génération ── */}
+        <div className="rounded-xl border-2 border-indigo-300 bg-indigo-50/60 p-4 shadow-sm">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600">
+                Saisie manuelle d'un étudiant
+              </p>
+              <p className="mt-0.5 text-[11px] text-indigo-500">
+                Fonctionne sans liste d'étudiants. Seul l'horaire est à saisir — les autres champs sont repris ci-dessus.
+              </p>
+            </div>
+          </div>
+
+          {/* Récap des champs auto-remplis */}
+          <div className="mb-3 flex flex-wrap gap-x-4 gap-y-0.5 rounded-lg border border-indigo-200 bg-white/60 px-3 py-2 text-[11px] text-slate-600">
+            <span><span className="font-bold text-slate-400">Jury </span>{juryNumero || <span className="italic text-amber-500">à renseigner</span>}</span>
+            <span><span className="font-bold text-slate-400">Évaluateur </span>{[defaultExaminer.nom, defaultExaminer.prenom].filter(Boolean).join(" ") || <span className="italic text-amber-500">à renseigner</span>}</span>
+            <span><span className="font-bold text-slate-400">Durée </span>{dur} min</span>
+            <span><span className="font-bold text-slate-400">Date </span>{jourPassage ? new Date(jourPassage + "T00:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : <span className="italic text-amber-500">à renseigner ↑</span>}</span>
+            <span><span className="font-bold text-slate-400">Lieu </span>{lieu || <span className="italic text-amber-500">à renseigner ↑</span>}</span>
+          </div>
+
+          <div className="grid grid-cols-[80px_1fr_1fr_90px] gap-2 items-end">
+            <div>
+              <label className={labelCls}>Civilité</label>
+              <select
+                value={manualCivilite}
+                onChange={e => setManualCivilite(e.target.value)}
+                className="w-full rounded-lg border-2 border-slate-200 bg-slate-100 px-2 py-2 text-sm font-bold"
+              >
+                <option>M.</option>
+                <option>Mme</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Nom *</label>
+              <input
+                type="text"
+                value={manualNom}
+                onChange={e => { setManualNom(e.target.value); setConflictWarning(null); }}
+                placeholder="NOM"
+                className={fieldCls(manualNom)}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Prénom</label>
+              <input
+                type="text"
+                value={manualPrenom}
+                onChange={e => setManualPrenom(e.target.value)}
+                placeholder="Prénom"
+                className="w-full rounded-lg border-2 border-slate-200 bg-slate-100 px-3 py-2 text-sm font-bold"
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Heure *</label>
+              <input
+                type="time"
+                value={manualHeure}
+                onChange={e => { setManualHeure(e.target.value); setConflictWarning(null); }}
+                className={fieldCls(manualHeure)}
+              />
+            </div>
+          </div>
+
+          {conflictWarning && (
+            <div className="mt-3 rounded-lg border border-orange-300 bg-orange-50 p-3">
+              <p className="text-xs font-bold text-orange-800">⚠ {conflictWarning}</p>
+              <div className="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setConflictWarning(null); setPendingManualEntry(null); }}
+                  className="rounded-lg border border-orange-300 px-3 py-1 text-xs font-bold text-orange-700 hover:bg-orange-100"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (pendingManualEntry) {
+                      const next = [...schedule, pendingManualEntry].sort((a, b) => timeToMin(a.heure) - timeToMin(b.heure));
+                      setSchedule(next);
+                      setGenerated(true);
+                      onScheduleGenerated?.(next.map(e => ({ ...e, date: jourPassage })));
+                      setManualNom("");
+                      setManualPrenom("");
+                      setManualHeure("");
+                      setConflictWarning(null);
+                      setPendingManualEntry(null);
+                      notify(`${pendingManualEntry.student.nom} ${pendingManualEntry.student.prenom} ajouté malgré le conflit.`);
+                    }
+                  }}
+                  className="rounded-lg bg-orange-600 px-3 py-1 text-xs font-bold text-white hover:bg-orange-500"
+                >
+                  Forcer l'ajout (admin)
+                </button>
+              </div>
+            </div>
+          )}
+          {!conflictWarning && (
+            <button
+              type="button"
+              onClick={() => checkAndAddManual(false)}
+              disabled={!manualNom.trim() || !manualHeure || !jourPassage}
+              className="mt-3 flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-500 disabled:opacity-40"
+            >
+              + Ajouter au planning
+            </button>
+          )}
+          {!jourPassage && (
+            <p className="mt-2 text-[11px] text-amber-700 font-semibold">⚠ Renseignez le jour de passage dans les champs ci-dessus pour activer l'ajout.</p>
+          )}
+        </div>
+
+        {/* Diviseur */}
+        <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-slate-400">
+          <div className="flex-1 border-t border-slate-200" />
+          Génération automatique (optionnelle — nécessite une liste d'étudiants)
+          <div className="flex-1 border-t border-slate-200" />
+        </div>
+
         {/* Créneaux horaires */}
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
           <h3 className="text-xs font-extrabold uppercase text-slate-500">Créneaux horaires *</h3>
@@ -429,17 +615,15 @@ export function BddPanel({ studentList, defaultExaminer, examDurationMinutes, ue
           </p>
         </div>
 
-        {/* Erreurs de validation */}
         {!canGenerate && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-            <p className="font-black uppercase text-[10px] text-amber-600 mb-1">Champs requis avant génération</p>
+            <p className="font-black uppercase text-[10px] text-amber-600 mb-1">Champs requis pour la génération automatique</p>
             <ul className="list-disc list-inside space-y-0.5">
               {missingFields.map(f => <li key={f}>{f}</li>)}
             </ul>
           </div>
         )}
 
-        {/* Boutons */}
         <div className="flex gap-3 flex-wrap">
           <Button
             variant="primary"
@@ -448,7 +632,7 @@ export function BddPanel({ studentList, defaultExaminer, examDurationMinutes, ue
           >
             ↺ Générer l'ordre de passage (aléatoire)
           </Button>
-          {generated && schedule.length > 0 && (
+          {schedule.length > 0 && (
             <Button
               variant="neutral"
               className="bg-emerald-600 text-white hover:bg-emerald-700"
@@ -459,8 +643,8 @@ export function BddPanel({ studentList, defaultExaminer, examDurationMinutes, ue
           )}
         </div>
 
-        {/* Tableau */}
-        {generated && schedule.length > 0 && (
+        {/* Tableau planning */}
+        {schedule.length > 0 && (
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto">
             <table className="w-full text-sm">
               <thead>

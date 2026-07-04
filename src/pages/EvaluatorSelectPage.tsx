@@ -1,4 +1,5 @@
-import { ArrowLeft, UserCircle, BookOpen, Users } from "lucide-react";
+import React, { useState } from "react";
+import { ArrowLeft, UserCircle, BookOpen, Users, CalendarDays } from "lucide-react";
 import { logoDataUri } from "../assets/logo";
 import type { AppRoute, EvalConfig } from "../types";
 import { useEvalStore } from "../hooks/useEvalStore";
@@ -32,7 +33,7 @@ export function EvaluatorSelectPage({ route, onNavigate }: Props) {
     }
 
     return (
-      <PageShell title="Qui êtes-vous ?" backRoute={{ page: "home" }} onNavigate={onNavigate}>
+      <PageShell title="Choix évaluateur" backRoute={{ page: "home" }} onNavigate={onNavigate}>
         {evaluators.length === 0 ? (
           <div className="rounded-2xl border border-white/10 bg-white/5 p-12 text-center text-white/40">
             <UserCircle size={36} className="mx-auto mb-3 opacity-30" />
@@ -62,6 +63,25 @@ export function EvaluatorSelectPage({ route, onNavigate }: Props) {
   const ues: EvalConfig[] = configs.filter(cfg => evaluatorKey(cfg) === selKey);
   const evalName = ues.length > 0 ? evaluatorLabel(ues[0]) : selKey;
 
+  // Détecter les dates de session disponibles dans les BDD
+  const allDates = [...new Set(
+    ues.flatMap(cfg => (cfg.bddSchedule ?? []).map(e => e.date))
+  )].sort();
+
+  // Si plusieurs dates → afficher un choix de jour
+  // On filtre les UEs selon la date sélectionnée si une BDD est configurée
+  const today = new Date().toISOString().split("T")[0];
+  const defaultDate = allDates.includes(today) ? today : (allDates[0] ?? "");
+  const [selectedDate, setSelectedDate] = useState(defaultDate);
+
+  const filteredUes = selectedDate && allDates.length > 0
+    ? ues.filter(cfg =>
+        !cfg.bddSchedule ||
+        cfg.bddSchedule.length === 0 ||
+        cfg.bddSchedule.some(e => e.date === selectedDate)
+      )
+    : ues;
+
   return (
     <PageShell
       title={evalName}
@@ -69,8 +89,34 @@ export function EvaluatorSelectPage({ route, onNavigate }: Props) {
       backRoute={{ page: "eval-select-evaluator" }}
       onNavigate={onNavigate}
     >
+      {allDates.length > 1 && (
+        <div className="mb-6 rounded-2xl border border-white/10 bg-white/5 p-4">
+          <p className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-white/40">
+            <CalendarDays size={12} /> Jour d'évaluation
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {allDates.map(d => {
+              const label = new Date(d + "T00:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setSelectedDate(d)}
+                  className={`rounded-xl px-4 py-2 text-sm font-bold transition-all ${
+                    selectedDate === d
+                      ? "bg-emerald-500 text-white shadow"
+                      : "border border-white/10 bg-white/5 text-white/50 hover:bg-white/10"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
       <div className="flex flex-col gap-3">
-        {ues.map(cfg => {
+        {filteredUes.map(cfg => {
           const done = cfg.savedEvaluations.length;
           const total = cfg.studentList.length;
           const allDone = total > 0 && done >= total;

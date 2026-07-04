@@ -13,6 +13,7 @@ import { generateId } from "../utils";
 interface Props {
   mode: "create" | "edit";
   evalId?: string;
+  sessionId?: string;
   onNavigate: (route: AppRoute) => void;
   onRequestPreview?: (config: EvalConfig) => void;
 }
@@ -39,7 +40,10 @@ function configToStudentData(cfg: EvalConfig): StudentData {
   };
 }
 
-export function EvalConfigPage({ mode, evalId, onNavigate }: Props) {
+export function EvalConfigPage({ mode, evalId, sessionId, onNavigate }: Props) {
+  const goBack = () => sessionId
+    ? onNavigate({ page: "admin-session-detail", sessionId })
+    : onNavigate({ page: "admin-home" });
   const { getConfig, createConfig, updateConfig, deleteConfig } = useEvalStore();
   const { confirm, notify } = useDialogs();
 
@@ -127,11 +131,11 @@ export function EvalConfigPage({ mode, evalId, onNavigate }: Props) {
     if (mode === "create" || !selectedId) {
       const cfg = createConfig(gatherConfig());
       notify(`Évaluation "${cfg.ue}" (${cfg.promotion}) créée.`);
-      onNavigate({ page: "admin-home" });
+      goBack();
     } else {
       updateConfig(selectedId, gatherConfig());
       notify("Évaluation mise à jour.");
-      onNavigate({ page: "admin-home" });
+      goBack();
     }
   };
 
@@ -173,7 +177,7 @@ export function EvalConfigPage({ mode, evalId, onNavigate }: Props) {
     if (!ok) return;
     deleteConfig(selectedId);
     notify("Évaluation supprimée.");
-    onNavigate({ page: "admin-home" });
+    goBack();
   };
 
   const fillTest = () => {
@@ -219,7 +223,7 @@ export function EvalConfigPage({ mode, evalId, onNavigate }: Props) {
       <div className="sticky top-0 z-20 flex items-center justify-between border-b border-white/10 bg-slate-800 px-6 py-3">
         <button
           type="button"
-          onClick={() => onNavigate({ page: "admin-home" })}
+          onClick={() => goBack()}
           className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-white/50 hover:bg-white/5 hover:text-white/80"
         >
           <ArrowLeft size={15} /> Admin
@@ -490,6 +494,39 @@ export function EvalConfigPage({ mode, evalId, onNavigate }: Props) {
               </div>
             </div>
           </div>
+
+          {/* Mini radar en temps réel */}
+          {axes.length >= 3 && (() => {
+            const c = 120; const r = 80; const n = axes.length;
+            const rings = [0.25, 0.5, 0.75, 1].map(lvl =>
+              `<circle cx="${c}" cy="${c}" r="${r * lvl}" fill="none" stroke="#334155" stroke-width="1" />`
+            ).join("");
+            const axLines = axes.map((_a, i) => {
+              const ang = (-90 + (360 / n) * i) * Math.PI / 180;
+              return `<line x1="${c}" y1="${c}" x2="${(c + r * Math.cos(ang)).toFixed(1)}" y2="${(c + r * Math.sin(ang)).toFixed(1)}" stroke="#475569" stroke-width="1" />`;
+            }).join("");
+            const lbls = axes.map((a, i) => {
+              const ang = (-90 + (360 / n) * i) * Math.PI / 180;
+              const lx = (c + (r + 22) * Math.cos(ang)).toFixed(1);
+              const ly = (c + (r + 22) * Math.sin(ang)).toFixed(1);
+              const short = a.label.length > 10 ? a.label.slice(0, 9) + "…" : a.label;
+              return `<text x="${lx}" y="${ly}" font-size="8" font-weight="700" text-anchor="middle" dominant-baseline="middle" fill="#94a3b8">${short}</text>`;
+            }).join("");
+            const pts = axes.map((a, i) => {
+              const ang = (-90 + (360 / n) * i) * Math.PI / 180;
+              const ratio = a.max > 0 ? (axesMaxSum > 0 ? 0.5 : 0) : 0;
+              const pr = ratio * r;
+              return `${(c + pr * Math.cos(ang)).toFixed(1)},${(c + pr * Math.sin(ang)).toFixed(1)}`;
+            }).join(" ");
+            return (
+              <div className="mt-4">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">Forme du radar ({axes.length} axes)</p>
+                <div className="flex justify-center rounded-xl bg-slate-700/40 py-3">
+                  <svg width="240" height="240" viewBox="0 0 240 240" dangerouslySetInnerHTML={{ __html: rings + axLines + lbls + `<polygon points="${pts}" fill="rgba(37,99,235,0.2)" stroke="#3b82f6" stroke-width="1.5" stroke-linejoin="round" />` }} />
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
     )}

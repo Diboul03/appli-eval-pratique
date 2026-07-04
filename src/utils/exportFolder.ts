@@ -4,24 +4,28 @@ export function sanitizeFolder(s: string): string {
   return s.replace(/[/\\:*?"<>|]/g, " ").replace(/\s{2,}/g, " ").trim() || "inconnu";
 }
 
-/** Dossier archives HTML : "archives eval PROMO UE" */
-export function buildArchivesFolder(promotion: string, ue: string): string {
-  return sanitizeFolder(`archives eval ${promotion} ${ue}`);
+/**
+ * BDD : appli-eval-pratique-data/bdd/{ue}/
+ * Un seul répertoire BDD général, sous-dossier par UE.
+ */
+export function buildBddPath(ue: string): string {
+  return `bdd/${sanitizeFolder(ue)}`;
 }
 
-/** Retourne le nom du dossier promotion (racine des exports). */
-export function buildPromoFolder(promotion: string): string {
-  return sanitizeFolder(promotion);
+/**
+ * Notes : appli-eval-pratique-data/notes/{promo}/{sessionDate}/{ue}/
+ * sessionDate = YYYY-MM-DD de la session d'éval.
+ */
+export function buildNotesPath(promo: string, sessionDate: string, ue: string): string {
+  return `notes/${sanitizeFolder(promo)}/${sessionDate}/${sanitizeFolder(ue)}`;
 }
 
-/** Dossier pour les récaps de notes : "NOTES PROMO UE" */
-export function buildNotesFolder(promotion: string, ue: string): string {
-  return sanitizeFolder(`NOTES ${promotion} ${ue}`);
-}
-
-/** Dossier pour les BDD : "BDD UE PROMO" */
-export function buildBddFolder(ue: string, promotion: string): string {
-  return sanitizeFolder(`BDD ${ue} ${promotion}`);
+/**
+ * Archives : appli-eval-pratique-data/archives/{promo}/{ue}/
+ * Contient un fichier par étudiant + le fichier promotion complète.
+ */
+export function buildArchivesPath(promo: string, ue: string): string {
+  return `archives/${sanitizeFolder(promo)}/${sanitizeFolder(ue)}`;
 }
 
 /** Construit le nom de fichier pour un export (UE + date). */
@@ -31,7 +35,24 @@ export function buildExportFileName(ue: string, date: string, ext: string): stri
   return [sanitizeFolder(ue), datePart].filter(Boolean).join("_") + ext;
 }
 
-/** @deprecated Utiliser buildPromoFolder + buildExportFileName */
+// Compat aliases (appelés depuis App.tsx / RecapSelectPage avant migration)
+/** @deprecated → buildArchivesPath */
+export function buildArchivesFolder(promotion: string, ue: string): string {
+  return buildArchivesPath(promotion, ue);
+}
+/** @deprecated → buildNotesPath */
+export function buildNotesFolder(promotion: string, ue: string): string {
+  return buildNotesPath(promotion, "", ue);
+}
+/** @deprecated → buildBddPath */
+export function buildBddFolder(ue: string, _promotion: string): string {
+  return buildBddPath(ue);
+}
+/** @deprecated */
+export function buildPromoFolder(promotion: string): string {
+  return sanitizeFolder(promotion);
+}
+/** @deprecated */
 export function buildFolderName(promotion: string, ue: string, date: string): string {
   const [y, m, d] = (date || "").split("-");
   const datePart = d && m && y ? `${d}-${m}-${y.slice(2)}` : (date || "");

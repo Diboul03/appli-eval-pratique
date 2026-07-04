@@ -1,10 +1,12 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useOnlineStatus } from "./hooks/useOnlineStatus";
 import { PenTool, HelpCircle, Settings, AlertTriangle, Target, Download, Upload, KeyRound, TableIcon } from "lucide-react";
 import { useEvaluationForm, formatDurationMs } from "./hooks/useEvaluationForm";
 import { useEvalStore } from "./hooks/useEvalStore";
 import { HomePage } from "./pages/HomePage";
 import { AdminHomePage } from "./pages/AdminHomePage";
+import { AdminSessionPage } from "./pages/AdminSessionPage";
 import { EvalConfigPage } from "./pages/EvalConfigPage";
 import { EvaluatorSelectPage } from "./pages/EvaluatorSelectPage";
 import { BddSelectPage } from "./pages/BddSelectPage";
@@ -27,33 +29,53 @@ import { BddPanel } from "./components/BddPanel";
 import { RecapTable } from "./components/RecapTable";
 import { useEvaluationStats } from "./hooks/useEvaluationStats";
 import { buildEvaluationsHtml } from "./utils/evaluations";
-import { buildArchivesFolder, buildNotesFolder, buildExportFileName, saveFileToFolder } from "./utils/exportFolder";
+import { buildArchivesPath, buildNotesPath, buildExportFileName, saveFileToFolder, sanitizeFolder } from "./utils/exportFolder";
 import { buildRecapXlsxBuffer } from "./utils/recapXlsx";
+import { printHtml, buildRecapHtml } from "./utils/printPdf";
 import { logoDataUri } from "./assets/logo";
 import type { DrawPersisted } from "./types";
 
 export function App() {
   const [route, setRoute] = useState<AppRoute>({ page: "home" });
+  const isOnline = useOnlineStatus();
 
-  if (route.page === "home") return <HomePage onNavigate={setRoute} />;
-  if (route.page === "admin-home") return <AdminHomePage onNavigate={setRoute} />;
-  if (route.page === "admin-create") return <EvalConfigPage mode="create" onNavigate={setRoute} onRequestPreview={cfg => setRoute({ page: "admin-preview", config: cfg, backRoute: { page: "admin-create" } })} />;
-  if (route.page === "admin-edit") return <EvalConfigPage mode="edit" evalId={route.evalId} onNavigate={setRoute} onRequestPreview={cfg => setRoute({ page: "admin-preview", config: cfg, backRoute: { page: "admin-edit", evalId: route.evalId } })} />;
-  if (route.page === "admin-bdd") return <BddSelectPage onNavigate={setRoute} />;
-  if (route.page === "admin-recap") return <RecapSelectPage initialEvalId={route.evalId} onNavigate={setRoute} />;
-  if (route.page === "admin-preview") return <EvaluatorWizard previewConfig={route.config} onBack={() => setRoute(route.backRoute)} onNavigate={setRoute} />;
+  const offlineBadge = !isOnline ? (
+    <div className="fixed bottom-4 right-4 z-[9999] flex items-center gap-2 rounded-full border border-red-300 bg-red-600 px-3 py-1.5 shadow-lg">
+      <span className="h-2 w-2 rounded-full bg-white" />
+      <span className="text-[11px] font-bold uppercase tracking-wide text-white">Hors ligne</span>
+    </div>
+  ) : null;
+
+  if (route.page === "home") return <>{<HomePage onNavigate={setRoute} />}{offlineBadge}</>;
+  if (route.page === "admin-home") return <>{<AdminHomePage onNavigate={setRoute} />}{offlineBadge}</>;
+  if (route.page === "admin-session-detail") return <>{<AdminSessionPage sessionId={route.sessionId} onNavigate={setRoute} />}{offlineBadge}</>;
+  if (route.page === "admin-create") return <>{<EvalConfigPage mode="create" sessionId={route.sessionId} onNavigate={setRoute} onRequestPreview={cfg => setRoute({ page: "admin-preview", config: cfg, backRoute: { page: "admin-create", sessionId: route.sessionId } })} />}{offlineBadge}</>;
+  if (route.page === "admin-edit") return <>{<EvalConfigPage mode="edit" evalId={route.evalId} sessionId={route.sessionId} onNavigate={setRoute} onRequestPreview={cfg => setRoute({ page: "admin-preview", config: cfg, backRoute: { page: "admin-edit", evalId: route.evalId, sessionId: route.sessionId } })} />}{offlineBadge}</>;
+  if (route.page === "admin-bdd") return <>{<BddSelectPage onNavigate={setRoute} />}{offlineBadge}</>;
+  if (route.page === "admin-recap") return <>{<RecapSelectPage onNavigate={setRoute} />}{offlineBadge}</>;
+  if (route.page === "admin-preview") return <>{<EvaluatorWizard previewConfig={route.config} onBack={() => setRoute(route.backRoute)} onNavigate={setRoute} />}{offlineBadge}</>;
   if (route.page === "eval-select-evaluator" || route.page === "eval-select-ue") {
-    return <EvaluatorSelectPage route={route} onNavigate={setRoute} />;
+    return <>{<EvaluatorSelectPage route={route} onNavigate={setRoute} />}{offlineBadge}</>;
   }
   // route.page === "eval-run" → EvaluatorWizard
   const evalId = route.page === "eval-run" ? route.evalId : undefined;
-  return <EvaluatorWizard evalId={evalId} onNavigate={setRoute} />;
+  return <>{<EvaluatorWizard evalId={evalId} onNavigate={setRoute} />}{offlineBadge}</>;
 }
 
 function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId?: string; previewConfig?: import("./types").EvalConfig; onBack?: () => void; onNavigate: (r: AppRoute) => void }) {
   const { confirm, notify } = useDialogs();
   const form = useEvaluationForm();
   const evalStore = useEvalStore();
+
+  // Plein écran automatique en mode éval (pas en aperçu admin)
+  useEffect(() => {
+    if (previewConfig) return;
+    const el = document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+    return () => {
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    };
+  }, [previewConfig]);
 
   // Charge la config de l'éval sélectionnée dans le formulaire au montage
   useEffect(() => {
@@ -96,6 +118,15 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
   );
 
   const [evalStep, setEvalStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const radarSectionRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (evalStep === 3) {
+      window.setTimeout(() => {
+        radarSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 80);
+    }
+  }, [evalStep]);
 
   const [isSaving, setIsSaving] = useState(false);
   const restoreInputRef = useRef<HTMLInputElement | null>(null);
@@ -142,11 +173,8 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.hasSelectedStudent]);
 
-  useEffect(() => {
-    if (form.signatureImage) {
-      window.setTimeout(() => setShowFinishModal(true), 0);
-    }
-  }, [form.signatureImage]);
+  // La modal de validation est déclenchée manuellement via le bouton "Valider"
+  // (plus d'auto-modal sur signatureImage pour éviter le bug double-appui)
 
   const clearCanvasSignature = useCallback(() => {
     const canvas = canvasRef.current;
@@ -587,6 +615,22 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                           <Button
                             variant="neutral"
                             size="sm"
+                            className="bg-rose-600 text-white hover:bg-rose-700"
+                            onClick={() => {
+                              if (form.savedEvaluations.length === 0) {
+                                notify("Aucune évaluation à exporter.", "error");
+                                return;
+                              }
+                              const first = form.savedEvaluations[0];
+                              const title = [first.ue, first.promotion].filter(Boolean).join(" — ");
+                              printHtml(buildRecapHtml(form.savedEvaluations, title), title);
+                            }}
+                          >
+                            PDF
+                          </Button>
+                          <Button
+                            variant="neutral"
+                            size="sm"
                             className="bg-purple-600 text-white hover:bg-purple-700"
                             onClick={() => setShowDashboard(true)}
                           >
@@ -612,7 +656,7 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                             if (form.selectedSavedId) {
                               form.loadSavedEvaluation(form.selectedSavedId);
                               clearCanvasSignature();
-                              setEvalStep(3);
+                              window.setTimeout(() => setEvalStep(3), 120);
                             }
                           }}
                         >
@@ -672,7 +716,8 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                       if (form.selectedSavedId) {
                         form.loadSavedEvaluation(form.selectedSavedId);
                         clearCanvasSignature();
-                        setEvalStep(3);
+                        // Attendre que loadSavedEvaluation ait positionné loadedStudentKey
+                        window.setTimeout(() => setEvalStep(3), 120);
                       }
                     }}
                   >
@@ -868,6 +913,28 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                 </div>
               )}
 
+              {/* Alerte étudiants non évalués avant fin créneau */}
+              {!isCoordinator && form.timer.isRunning && form.timer.remainingMs !== null && form.timer.remainingMs > 0 && form.timer.remainingMs < 15 * 60 * 1000 && (() => {
+                const remaining = form.studentList.filter(s =>
+                  !form.savedEvaluations.some(ev => ev.student.nom === s.nom && ev.student.prenom === s.prenom)
+                );
+                if (remaining.length === 0) return null;
+                const mins = Math.ceil(form.timer.remainingMs / 60000);
+                return (
+                  <div className="mx-4 mt-3 flex items-start gap-3 rounded-xl border-2 border-orange-400 bg-orange-50 px-4 py-3 shadow-sm">
+                    <span className="text-xl">⏰</span>
+                    <div>
+                      <p className="text-sm font-extrabold text-orange-800">
+                        {mins} min restante{mins > 1 ? "s" : ""} — {remaining.length} étudiant{remaining.length > 1 ? "s" : ""} non évalué{remaining.length > 1 ? "s" : ""} :
+                      </p>
+                      <p className="text-xs text-orange-700">
+                        {remaining.map(s => `${s.nom} ${s.prenom}`).join(" · ")}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {!isCoordinator && (
               <>
 
@@ -939,7 +1006,10 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                   )}
 
                   <div className="flex justify-between pt-4">
-                    <Button variant="ghost" onClick={() => setEvalStep(1)}>← Retour</Button>
+                    <Button variant="ghost" onClick={async () => {
+                      await form.handleStudentChange("");
+                      setEvalStep(1);
+                    }}>← Retour</Button>
                     <div className="flex gap-2">
                       {form.drawEnabled && (
                         <Button
@@ -965,7 +1035,7 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
 
               {/* ── ÉTAPE 3 : Radar & sous-indicateurs ── */}
               {evalStep === 3 && (
-                <div className="px-6 py-6">
+                <div ref={radarSectionRef} className="px-6 py-6">
                   {form.loadedStudentKey && (
                     <div className="mb-4 flex items-center justify-between rounded-xl border border-amber-300 bg-amber-50 p-3">
                       <div>
@@ -1219,7 +1289,24 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                     onStopDrawing={stopDrawing}
                   />
 
-                  {!form.signatureImage && (
+                  {form.signatureImage ? (
+                    <div className="mt-6 flex flex-col items-center gap-3">
+                      <Button
+                        variant="primary"
+                        onClick={() => setShowFinishModal(true)}
+                        className="w-full max-w-sm rounded-2xl py-4 text-base font-black uppercase tracking-wide shadow-lg"
+                      >
+                        ✓ Valider l'évaluation
+                      </Button>
+                      <button
+                        type="button"
+                        onClick={() => { clearSignature(); }}
+                        className="text-xs text-slate-400 underline hover:text-slate-600"
+                      >
+                        Effacer la signature et recommencer
+                      </button>
+                    </div>
+                  ) : (
                     <div className="mt-6 flex justify-start">
                       <Button variant="ghost" onClick={() => setEvalStep(4)}>← Retour</Button>
                     </div>
@@ -1234,29 +1321,34 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
 
           <div className="flex flex-wrap items-center justify-center gap-3 border-t border-slate-200 bg-slate-50 p-6 print:hidden">
             {!isCoordinator && !form.allStudentsEvaluated && form.savedEvaluations.length > 0 && (
-              <div className="flex items-end gap-2">
-                <EvaluationPicker
-                  savedEvaluations={form.savedEvaluations}
-                  value={form.selectedSavedId}
-                  onChange={form.setSelectedSavedId}
-                  showNote={false}
-                  className="min-w-[260px] text-left"
-                />
-                <Button
-                  variant="primary"
-                  size="sm"
-                  disabled={!form.selectedSavedId}
-                  onClick={() => {
-                    if (form.selectedSavedId) {
-                      form.loadSavedEvaluation(form.selectedSavedId);
-                      clearCanvasSignature();
-                      setEvalStep(3);
-                      notify("Évaluation chargée pour modification.");
-                    }
-                  }}
-                >
-                  Charger
-                </Button>
+              <div className="w-full rounded-xl border-2 border-amber-300 bg-amber-50 p-3">
+                <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-amber-700">
+                  Modifier une évaluation enregistrée
+                </p>
+                <div className="flex items-center gap-2">
+                  <EvaluationPicker
+                    savedEvaluations={form.savedEvaluations}
+                    value={form.selectedSavedId}
+                    onChange={form.setSelectedSavedId}
+                    showNote={true}
+                    className="flex-1 rounded-lg border-2 border-amber-300 bg-white font-bold text-slate-800"
+                  />
+                  <Button
+                    variant="warning"
+                    disabled={!form.selectedSavedId}
+                    onClick={() => {
+                      if (form.selectedSavedId) {
+                        form.loadSavedEvaluation(form.selectedSavedId);
+                        clearCanvasSignature();
+                        window.setTimeout(() => setEvalStep(3), 120);
+                        notify("Évaluation chargée pour modification.");
+                      }
+                    }}
+                    className="shrink-0 rounded-lg px-4 py-2 font-black"
+                  >
+                    ✎ Modifier
+                  </Button>
+                </div>
               </div>
             )}
           </div>
@@ -1308,11 +1400,14 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
         title="Valider l'évaluation ?"
         showCloseButton={false}
       >
-        <p className="text-sm text-slate-600">Valider l'évaluation pour :</p>
-        <p className="mt-2 text-lg font-extrabold">
+        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Valider l'évaluation pour</p>
+        <p className="mt-1 text-2xl font-black uppercase tracking-tight text-slate-800">
           {form.studentData.civilite ? `${form.studentData.civilite} ` : ""}
           {form.studentData.nom} {form.studentData.prenom}
         </p>
+        {form.studentData.ue && (
+          <p className="mt-0.5 text-sm font-semibold text-indigo-600">{form.studentData.ue}</p>
+        )}
         <div className="mt-4 grid grid-cols-2 gap-2">
           <Button
             variant="neutral"
@@ -1335,17 +1430,26 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                 const sessionEvals = newAllEvals.filter(
                   ev => ev.ue === item.ue && ev.date === item.date,
                 );
+                const sanitize = (s: string) => sanitizeFolder(s).replace(/\s+/g, "_");
                 const promo = item.promotion || "inconnu";
+                const sessionDate = evalId
+                  ? (evalStore.getSessionForConfig(evalId)?.date ?? item.date)
+                  : item.date;
                 const baseName = buildExportFileName(item.ue, item.date, "");
-                // HTML éval → dossier "archives eval PROMO UE"
+                // HTML éval par étudiant + promotion complète → archives/{promo}/{ue}/
                 try {
-                  const archivesDir = buildArchivesFolder(promo, item.ue);
+                  const archivesDir = buildArchivesPath(promo, item.ue);
+                  // Fichier individuel de l'étudiant
+                  const studentHtml = buildEvaluationsHtml([item]);
+                  const studentFile = `${sanitize(item.student.nom)}_${sanitize(item.student.prenom)}.html`;
+                  await saveFileToFolder(archivesDir, studentFile, studentHtml);
+                  // Fichier promotion complète (toujours mis à jour)
                   const fullHtml = buildEvaluationsHtml(sessionEvals);
-                  await saveFileToFolder(archivesDir, `${baseName}.html`, fullHtml);
+                  await saveFileToFolder(archivesDir, `${baseName}_promo.html`, fullHtml);
                 } catch { /* non-bloquant */ }
-                // Récap notes xlsx → dossier "NOTES {PROMO} {UE}"
+                // Récap notes xlsx → notes/{promo}/{sessionDate}/{ue}/
                 try {
-                  const notesDir = buildNotesFolder(promo, item.ue);
+                  const notesDir = buildNotesPath(promo, sessionDate, item.ue);
                   const xlsxBuf = await buildRecapXlsxBuffer(sessionEvals);
                   await saveFileToFolder(notesDir, `${baseName}.xlsx`, xlsxBuf);
                 } catch { /* non-bloquant */ }

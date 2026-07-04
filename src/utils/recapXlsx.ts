@@ -144,6 +144,52 @@ export async function buildRecapXlsxBuffer(savedEvaluations: SavedEvaluation[]):
     footerRow.getCell(1).alignment = { horizontal: "left", vertical: "middle" };
   }
 
+  // Feuille récap globale par promotion
+  const promoMap = new Map<string, SavedEvaluation[]>();
+  for (const ev of savedEvaluations) {
+    const p = ev.promotion || "—";
+    if (!promoMap.has(p)) promoMap.set(p, []);
+    promoMap.get(p)!.push(ev);
+  }
+  if (promoMap.size > 0) {
+    const ws2 = wb.addWorksheet("Moyennes promotions", { views: [{ showGridLines: false }] });
+    ws2.columns = [
+      { key: "promo", width: 22 },
+      { key: "ue",    width: 24 },
+      { key: "n",     width: 12 },
+      { key: "avg",   width: 14 },
+    ];
+    const h2 = ws2.addRow(["Promotion", "UE", "Nb étudiants", "Moyenne / 20"]);
+    h2.height = 22;
+    h2.eachCell(c => {
+      c.font = { bold: true, size: 13, color: { argb: "FF" + COLOR.dark } };
+      c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + COLOR.emeraldLight } };
+      c.alignment = { horizontal: "center", vertical: "middle" };
+      c.border = borderTop;
+    });
+    for (const [promo, evs] of [...promoMap.entries()].sort(([a], [b]) => a.localeCompare(b, "fr"))) {
+      const byUe = new Map<string, SavedEvaluation[]>();
+      for (const ev of evs) {
+        const u = ev.ue || "—";
+        if (!byUe.has(u)) byUe.set(u, []);
+        byUe.get(u)!.push(ev);
+      }
+      for (const [ue, ueEvs] of [...byUe.entries()].sort(([a], [b]) => a.localeCompare(b, "fr"))) {
+        const avg = (ueEvs.reduce((s, e) => s + e.total20, 0) / ueEvs.length).toFixed(1);
+        const row = ws2.addRow([promo, ue, ueEvs.length, parseFloat(avg)]);
+        row.height = 20;
+        row.eachCell((c, ci) => {
+          c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + COLOR.white } };
+          c.alignment = { horizontal: ci <= 2 ? "left" : "center", vertical: "middle" };
+          c.border = borderAll;
+          c.font = ci === 4
+            ? { bold: true, size: 13, color: { argb: parseFloat(avg) >= 10 ? "FF047857" : "FFB91C1C" } }
+            : { size: 13 };
+        });
+      }
+    }
+  }
+
   const buf = await wb.xlsx.writeBuffer() as unknown;
   if (buf instanceof ArrayBuffer) return buf;
   if (buf instanceof Uint8Array) return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
