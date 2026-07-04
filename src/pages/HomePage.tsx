@@ -68,7 +68,7 @@ export function HomePage({ onNavigate }: Props) {
       </main>
 
       <footer className="py-4 text-center text-[10px] uppercase tracking-widest text-white/20">
-        v0.3.0
+        v0.5.0
       </footer>
     </div>
   );

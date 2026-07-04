@@ -113,8 +113,15 @@ export function EvalConfigPage({ mode, evalId, onNavigate }: Props) {
   });
 
   const handleSave = () => {
-    if (!studentData.promotion || !studentData.ue) {
-      notify("Veuillez renseigner la promotion et l'U.E. avant de valider.", "error");
+    const missing: string[] = [];
+    if (!studentData.promotion) missing.push("Promotion");
+    if (!studentData.ue.trim()) missing.push("Unité d'enseignement");
+    if (!defaultExaminer.nom.trim() && !defaultExaminer.prenom.trim()) missing.push("Nom de l'évaluateur");
+    if (examDurationMinutes <= 0) missing.push("Durée de l'examen");
+    if (axes.length === 0) missing.push("Au moins un axe d'évaluation");
+    if (!studentListValidated && studentList.length === 0) missing.push("Liste des étudiants");
+    if (missing.length > 0) {
+      notify(`Champs manquants avant validation :\n• ${missing.join("\n• ")}`, "error");
       return;
     }
     if (mode === "create" || !selectedId) {
@@ -171,7 +178,7 @@ export function EvalConfigPage({ mode, evalId, onNavigate }: Props) {
 
   const fillTest = () => {
     setStudentData(prev => ({ ...prev, promotion: "PCEO2", ue: "U.E. 5.3" }));
-    setDefaultExaminer({ nom: "DUPONT", prenom: "MARIE" });
+    setDefaultExaminer({ civilite: "Mme", nom: "DUPONT", prenom: "MARIE" });
     setExamDurationMinutes(15);
     setStudentList([
       { civilite: "Mme", nom: "MARTIN", prenom: "Sophie" },

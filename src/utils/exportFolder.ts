@@ -1,7 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 
 export function sanitizeFolder(s: string): string {
-  return s.replace(/[/\\:*?"<>|]/g, "-").replace(/\s+/g, "_").trim() || "inconnu";
+  return s.replace(/[/\\:*?"<>|]/g, " ").replace(/\s{2,}/g, " ").trim() || "inconnu";
+}
+
+/** Dossier archives HTML : "archives eval PROMO UE" */
+export function buildArchivesFolder(promotion: string, ue: string): string {
+  return sanitizeFolder(`archives eval ${promotion} ${ue}`);
 }
 
 /** Retourne le nom du dossier promotion (racine des exports). */
@@ -9,12 +14,12 @@ export function buildPromoFolder(promotion: string): string {
   return sanitizeFolder(promotion);
 }
 
-/** Dossier pour les récaps de notes : "NOTES {PROMO} {UE}" */
+/** Dossier pour les récaps de notes : "NOTES PROMO UE" */
 export function buildNotesFolder(promotion: string, ue: string): string {
   return sanitizeFolder(`NOTES ${promotion} ${ue}`);
 }
 
-/** Dossier pour les BDD : "BDD {UE} {PROMO}" */
+/** Dossier pour les BDD : "BDD UE PROMO" */
 export function buildBddFolder(ue: string, promotion: string): string {
   return sanitizeFolder(`BDD ${ue} ${promotion}`);
 }

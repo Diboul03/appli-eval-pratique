@@ -30,6 +30,7 @@ export interface StudentItem {
 }
 
 export interface ExaminerItem {
+  civilite?: string;
   nom: string;
   prenom: string;
 }

@@ -353,19 +353,19 @@ export function BddPanel({ studentList, defaultExaminer, examDurationMinutes, ue
             <div>
               <label className={labelCls}>Numéro jury</label>
               <select
-                className={`mb-1 ${fieldCls(juryNumero, false)}`}
+                className={fieldCls(JURY_PRESETS.includes(juryNumero) ? juryNumero : "", false)}
                 value={JURY_PRESETS.includes(juryNumero) ? juryNumero : "__custom__"}
-                onChange={e => { if (e.target.value !== "__custom__") setJuryNumero(e.target.value); }}
+                onChange={e => { if (e.target.value !== "__custom__") setJuryNumero(e.target.value); else setJuryNumero(""); }}
               >
                 {JURY_PRESETS.map(v => <option key={v} value={v}>{v}</option>)}
-                <option value="__custom__">Autre</option>
+                <option value="__custom__">Autre…</option>
               </select>
               {!JURY_PRESETS.includes(juryNumero) && (
                 <input
-                  className={fieldCls(juryNumero, false)}
+                  className={`mt-1 ${fieldCls(juryNumero, false)}`}
                   value={juryNumero}
                   onChange={e => setJuryNumero(e.target.value)}
-                  placeholder="Ex : Jury A"
+                  placeholder="Jury A…"
                 />
               )}
             </div>
@@ -401,7 +401,7 @@ export function BddPanel({ studentList, defaultExaminer, examDurationMinutes, ue
                 className={fieldCls(lieu)}
                 value={lieu}
                 onChange={e => setLieu(e.target.value)}
-                placeholder="BOX 5, 35 rue Lucas 03200 Vichy"
+                placeholder=""
               />
             </div>
           </div>

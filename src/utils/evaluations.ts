@@ -9,11 +9,13 @@ export const formatEvaluationLabel = (
   const created = new Date(ev.createdAt || `${ev.date}T00:00:00`);
   const showNote = options?.showNote ?? true;
 
+  const uePrefix = ev.ue ? `[${ev.ue}] ` : "";
+
   if (!showNote) {
-    return `${ev.student.nom} ${ev.student.prenom} — ${formatDate(created)} ${formatTime(created)}`;
+    return `${uePrefix}${ev.student.nom} ${ev.student.prenom} — ${formatDate(created)} ${formatTime(created)}`;
   }
 
-  return `${ev.student.nom} ${ev.student.prenom} — ${ev.total20.toFixed(1)}/20 — ${formatDate(
+  return `${uePrefix}${ev.student.nom} ${ev.student.prenom} — ${ev.total20.toFixed(1)}/20 — ${formatDate(
     created,
   )} ${formatTime(created)}`;
 };

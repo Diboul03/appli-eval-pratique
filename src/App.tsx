@@ -27,7 +27,7 @@ import { BddPanel } from "./components/BddPanel";
 import { RecapTable } from "./components/RecapTable";
 import { useEvaluationStats } from "./hooks/useEvaluationStats";
 import { buildEvaluationsHtml } from "./utils/evaluations";
-import { buildPromoFolder, buildNotesFolder, buildExportFileName, saveFileToFolder } from "./utils/exportFolder";
+import { buildArchivesFolder, buildNotesFolder, buildExportFileName, saveFileToFolder } from "./utils/exportFolder";
 import { buildRecapXlsxBuffer } from "./utils/recapXlsx";
 import { logoDataUri } from "./assets/logo";
 import type { DrawPersisted } from "./types";
@@ -115,6 +115,7 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
   const [evaluationToDelete, setEvaluationToDelete] = useState<typeof form.savedEvaluations[number] | null>(null);
   const [showDashboard, setShowDashboard] = useState(false);
 
+  const [showExitRecapModal, setShowExitRecapModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetScope, setResetScope] = useState<"config" | "all">("config");
   const [resetCode, setResetCode] = useState("");
@@ -265,8 +266,7 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
       setPreExitNeeds({ students: needStudents, questions: needQuestions, duration: needDuration });
       setShowPreExitModal(true);
     } else {
-      form.resetEvaluatorSession();
-      setIsCoordinator(false);
+      setShowExitRecapModal(true);
     }
   }, [form, bulkStudentsText, bulkGroupsText, bulkSinglesText]);
 
@@ -808,12 +808,67 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                       ue={form.studentData.ue}
                       promotion={form.studentData.promotion}
                       testTrigger={bddTestTrigger}
+                      onScheduleGenerated={evalId ? schedule => evalStore.saveBddSchedule(evalId, schedule) : undefined}
+                      otherSchedules={evalId ? evalStore.configs
+                        .filter(c => c.id !== evalId && c.promotion === form.studentData.promotion && c.bddSchedule)
+                        .map(c => c.bddSchedule!) : undefined}
                     />
                   )}
                 </>
               )}
 
-              {(!isCoordinator || adminView === "preview") && (
+              {isCoordinator && adminView === "preview" && (
+                <div className="mx-auto max-w-2xl p-6 space-y-4">
+                  <h2 className="text-sm font-black uppercase tracking-wide text-amber-700">Aperçu de l'évaluation</h2>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                      <p className="mb-1 text-[10px] font-black uppercase text-slate-400">Promotion</p>
+                      <p className="font-bold text-slate-800">{form.studentData.promotion || <span className="italic text-slate-400">—</span>}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                      <p className="mb-1 text-[10px] font-black uppercase text-slate-400">U.E.</p>
+                      <p className="font-bold text-slate-800">{form.studentData.ue || <span className="italic text-slate-400">—</span>}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                      <p className="mb-1 text-[10px] font-black uppercase text-slate-400">Évaluateur</p>
+                      <p className="font-bold text-slate-800">
+                        {[form.defaultExaminer.prenom, form.defaultExaminer.nom].filter(Boolean).join(" ") || <span className="italic text-slate-400">—</span>}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                      <p className="mb-1 text-[10px] font-black uppercase text-slate-400">Durée examen</p>
+                      <p className="font-bold text-slate-800">{form.examDurationMinutes ? `${form.examDurationMinutes} min` : <span className="italic text-slate-400">—</span>}</p>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <p className="mb-2 text-[10px] font-black uppercase text-slate-400">Axes ({form.axes.length}) — total {form.axesMaxSum} pts</p>
+                    {form.axes.length === 0 ? <p className="text-sm italic text-slate-400">Aucun axe configuré</p> : (
+                      <div className="space-y-1">
+                        {form.axes.map(ax => (
+                          <div key={ax.id} className="flex justify-between rounded-lg bg-slate-50 px-3 py-1.5 text-sm">
+                            <span>{ax.label || "Sans nom"}</span>
+                            <span className="font-bold text-amber-600">{ax.max} pts</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <p className="mb-1 text-[10px] font-black uppercase text-slate-400">Étudiants</p>
+                    <p className="text-sm text-slate-700">{form.studentList.length > 0 ? `${form.studentList.length} inscrits` : <span className="italic text-slate-400">Aucun</span>}</p>
+                  </div>
+                  {form.drawEnabled && (
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                      <p className="mb-1 text-[10px] font-black uppercase text-slate-400">Tirage</p>
+                      <p className="text-sm text-slate-700">
+                        {form.drawMode === "group" ? `${form.drawGroups.length} groupe(s)` : `${form.drawSingles.length} question(s)`}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!isCoordinator && (
               <>
 
               {/* ── ÉTAPE 1 : Sélection étudiant ── */}
@@ -827,6 +882,7 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                     studentList={form.studentList}
                     loadedStudentKey={form.loadedStudentKey}
                     savedEvaluations={form.savedEvaluations}
+                    bddSchedule={evalId ? evalStore.getConfig(evalId)?.bddSchedule : undefined}
                   />
                   <ExaminerStep
                     evaluatorFullName={`${form.studentData.evaluatorNom} ${form.studentData.evaluatorPrenom}`.trim()}
@@ -1281,11 +1337,11 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                 );
                 const promo = item.promotion || "inconnu";
                 const baseName = buildExportFileName(item.ue, item.date, "");
-                // HTML éval → dossier promotion
+                // HTML éval → dossier "archives eval PROMO UE"
                 try {
-                  const promoDir = buildPromoFolder(promo);
+                  const archivesDir = buildArchivesFolder(promo, item.ue);
                   const fullHtml = buildEvaluationsHtml(sessionEvals);
-                  await saveFileToFolder(promoDir, `${baseName}.html`, fullHtml);
+                  await saveFileToFolder(archivesDir, `${baseName}.html`, fullHtml);
                 } catch { /* non-bloquant */ }
                 // Récap notes xlsx → dossier "NOTES {PROMO} {UE}"
                 try {
@@ -1357,6 +1413,69 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
           vidées et qu'une durée d'examen valide n'est pas définie.
         </p>
       </Modal>
+
+      {/* Modal récap évals avant passage en mode éval */}
+      {showExitRecapModal && (() => {
+        const sortedConfigs = [...evalStore.configs].sort((a, b) => {
+          const p = a.promotion.localeCompare(b.promotion, "fr");
+          if (p !== 0) return p;
+          const ev = `${a.defaultExaminer.nom} ${a.defaultExaminer.prenom}`.localeCompare(
+            `${b.defaultExaminer.nom} ${b.defaultExaminer.prenom}`, "fr");
+          if (ev !== 0) return ev;
+          return a.ue.localeCompare(b.ue, "fr");
+        });
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowExitRecapModal(false)}>
+            <div className="relative w-full max-w-xl rounded-2xl border border-slate-700 bg-slate-800 p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+              <h2 className="mb-1 text-base font-black uppercase tracking-wide text-white">Passer en mode évaluateur</h2>
+              <p className="mb-4 text-xs text-white/50">Évaluations qui seront proposées — vous pouvez remettre à zéro avant de continuer.</p>
+              {sortedConfigs.length === 0 ? (
+                <p className="text-sm italic text-white/40">Aucune évaluation configurée.</p>
+              ) : (
+                <div className="mb-4 max-h-64 space-y-2 overflow-y-auto pr-1">
+                  {sortedConfigs.map(cfg => (
+                    <div key={cfg.id} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-2">
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-emerald-400">{cfg.promotion}</div>
+                        <div className="text-sm font-bold text-white">{cfg.ue || "U.E. sans nom"}</div>
+                        <div className="text-[11px] text-white/40">
+                          {[cfg.defaultExaminer.prenom, cfg.defaultExaminer.nom].filter(Boolean).join(" ") || "—"}
+                          {cfg.savedEvaluations.length > 0 && (
+                            <span className="ml-2 text-amber-400">· {cfg.savedEvaluations.length} note(s)</span>
+                          )}
+                        </div>
+                      </div>
+                      {cfg.savedEvaluations.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => evalStore.updateConfig(cfg.id, { savedEvaluations: [] })}
+                          className="ml-3 shrink-0 rounded-lg border border-red-400/30 bg-red-900/20 px-2 py-1 text-[10px] font-bold text-red-400 hover:bg-red-900/40"
+                        >
+                          RAZ
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setShowExitRecapModal(false)}
+                  className="flex-1 rounded-xl border border-white/10 py-2 text-sm font-bold text-white/60 hover:bg-white/5">
+                  Annuler
+                </button>
+                <button type="button" onClick={() => {
+                  setShowExitRecapModal(false);
+                  form.resetEvaluatorSession();
+                  setIsCoordinator(false);
+                }}
+                  className="flex-1 rounded-xl bg-emerald-500 py-2 text-sm font-bold text-white hover:bg-emerald-400">
+                  Passer en mode évaluateur →
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <Modal
         isOpen={showDeleteModal}

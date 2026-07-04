@@ -83,8 +83,8 @@ export function RadarChart({
 
   const center = 500;
   const radius = 300;
-  const lblRadX = radius + 105; // clearance horizontal
-  const lblRadY = radius + 40;  // clearance vertical
+  const lblRadX = radius + 190; // clearance horizontal — boîtes hors du cercle
+  const lblRadY = radius + 80;  // clearance vertical
 
   const svgRef = useRef<SVGSVGElement | null>(null);
   const lockedAxisIndex = useRef<number | null>(null);
@@ -103,11 +103,12 @@ export function RadarChart({
     const svg = svgRef.current;
     if (!svg) return { x: 0, y: 0 };
     const rect = svg.getBoundingClientRect();
-    const scaleX = 1000 / rect.width;
-    const scaleY = 1000 / rect.height;
+    // viewBox="-150 -50 1300 1100"
+    const scaleX = 1300 / rect.width;
+    const scaleY = 1100 / rect.height;
     return {
-      x: (clientX - rect.left) * scaleX - center,
-      y: (clientY - rect.top) * scaleY - center,
+      x: (clientX - rect.left) * scaleX - 150 - center,
+      y: (clientY - rect.top) * scaleY - 50 - center,
     };
   }, []);
 
@@ -275,7 +276,7 @@ export function RadarChart({
         </div>
         <svg
           ref={svgRef}
-          viewBox="0 0 1000 1000"
+          viewBox="-150 -50 1300 1100"
           className={`h-auto w-full ${hoveredAxisIndex !== null ? "cursor-grab" : "cursor-not-allowed"} select-none touch-none`}
           onMouseDown={onRadarMouseDown}
           onMouseMove={onRadarMouseMove}
