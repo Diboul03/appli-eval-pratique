@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Eye, CheckCircle, Trash2, FlaskConical, X, Users, Clock, BookOpen, Target } from "lucide-react";
-import { logoDataUri } from "../assets/logo";
+import { praxieLogoDataUri } from "../assets/praxie-logo";
 import type { AppRoute, Axis, EvalConfig, ExaminerItem, QuestionGroup, StudentData, StudentItem } from "../types";
 import { PROMOTIONS } from "../types";
 import { useEvalStore, blankConfig } from "../hooks/useEvalStore";
 import { AdminPanel } from "../components/AdminPanel";
-import { useDialogs } from "../components/Dialogs";
+import { useDialogs } from "../hooks/useDialogs";
 import { sumAxesMax } from "../utils/scoring";
 import { generateId } from "../utils";
 
@@ -229,7 +229,7 @@ export function EvalConfigPage({ mode, evalId, sessionId, onNavigate }: Props) {
           <ArrowLeft size={15} /> Admin
         </button>
         <div className="flex items-center gap-3">
-          <img src={logoDataUri} alt="" className="h-7 w-auto brightness-0 invert opacity-70" />
+          <img src={praxieLogoDataUri} alt="Praxie" className="h-7 w-auto rounded-xl" />
           <span className="text-sm font-black uppercase tracking-wide text-white/70">
             {isEditing ? "Modifier une évaluation" : "Nouvelle évaluation"}
           </span>

@@ -20,8 +20,17 @@ function evaluatorLabel(cfg: EvalConfig): string {
 export function EvaluatorSelectPage({ route, onNavigate }: Props) {
   const { configs } = useEvalStore();
 
+  // Toujours calculer ces valeurs (nécessaire pour useState avant tout return conditionnel)
+  const selKey = route.page === "eval-select-ue" ? route.evaluatorKey : "";
+  const ues: EvalConfig[] = configs.filter(cfg => evaluatorKey(cfg) === selKey);
+  const allDates = [...new Set(
+    ues.flatMap(cfg => (cfg.bddSchedule ?? []).map(e => e.date))
+  )].sort();
+  const today = new Date().toISOString().split("T")[0];
+  const defaultDate = allDates.includes(today) ? today : (allDates[0] ?? "");
+  const [selectedDate, setSelectedDate] = useState(defaultDate);
+
   if (route.page === "eval-select-evaluator") {
-    // Dédoublonner les évaluateurs
     const seen = new Set<string>();
     const evaluators: { key: string; label: string }[] = [];
     for (const cfg of configs) {
@@ -35,7 +44,7 @@ export function EvaluatorSelectPage({ route, onNavigate }: Props) {
     return (
       <PageShell title="Choix évaluateur" backRoute={{ page: "home" }} onNavigate={onNavigate}>
         {evaluators.length === 0 ? (
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-12 text-center text-white/40">
+          <div className="rounded-2xl border border-slate-200 bg-slate-100 p-12 text-center text-slate-400">
             <UserCircle size={36} className="mx-auto mb-3 opacity-30" />
             <p>Aucune évaluation configurée.<br />Contactez un administrateur.</p>
           </div>
@@ -46,10 +55,10 @@ export function EvaluatorSelectPage({ route, onNavigate }: Props) {
                 key={ev.key}
                 type="button"
                 onClick={() => onNavigate({ page: "eval-select-ue", evaluatorKey: ev.key })}
-                className="group flex flex-col items-center gap-3 rounded-2xl border border-emerald-400/20 bg-white/5 p-5 text-center backdrop-blur-sm transition-all hover:border-emerald-400/50 hover:bg-white/10 active:scale-[0.98]"
+                className="group flex flex-col items-center gap-3 rounded-2xl border border-emerald-200 bg-white p-5 text-center shadow-sm transition-all hover:border-emerald-400 hover:bg-emerald-50 active:scale-[0.98]"
               >
-                <UserCircle size={28} className="text-emerald-400/70 group-hover:text-emerald-300 transition-colors" />
-                <span className="text-sm font-black uppercase tracking-wide text-emerald-300 leading-tight">{ev.label}</span>
+                <UserCircle size={28} className="text-emerald-600 group-hover:text-emerald-700 transition-colors" />
+                <span className="text-sm font-black uppercase tracking-wide text-emerald-700 leading-tight">{ev.label}</span>
               </button>
             ))}
           </div>
@@ -59,20 +68,7 @@ export function EvaluatorSelectPage({ route, onNavigate }: Props) {
   }
 
   // Sélection de l'U.E. pour cet évaluateur
-  const { evaluatorKey: selKey } = route;
-  const ues: EvalConfig[] = configs.filter(cfg => evaluatorKey(cfg) === selKey);
   const evalName = ues.length > 0 ? evaluatorLabel(ues[0]) : selKey;
-
-  // Détecter les dates de session disponibles dans les BDD
-  const allDates = [...new Set(
-    ues.flatMap(cfg => (cfg.bddSchedule ?? []).map(e => e.date))
-  )].sort();
-
-  // Si plusieurs dates → afficher un choix de jour
-  // On filtre les UEs selon la date sélectionnée si une BDD est configurée
-  const today = new Date().toISOString().split("T")[0];
-  const defaultDate = allDates.includes(today) ? today : (allDates[0] ?? "");
-  const [selectedDate, setSelectedDate] = useState(defaultDate);
 
   const filteredUes = selectedDate && allDates.length > 0
     ? ues.filter(cfg =>
@@ -90,8 +86,8 @@ export function EvaluatorSelectPage({ route, onNavigate }: Props) {
       onNavigate={onNavigate}
     >
       {allDates.length > 1 && (
-        <div className="mb-6 rounded-2xl border border-white/10 bg-white/5 p-4">
-          <p className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-white/40">
+        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
             <CalendarDays size={12} /> Jour d'évaluation
           </p>
           <div className="flex flex-wrap gap-2">
@@ -105,7 +101,7 @@ export function EvaluatorSelectPage({ route, onNavigate }: Props) {
                   className={`rounded-xl px-4 py-2 text-sm font-bold transition-all ${
                     selectedDate === d
                       ? "bg-emerald-500 text-white shadow"
-                      : "border border-white/10 bg-white/5 text-white/50 hover:bg-white/10"
+                      : "border border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100"
                   }`}
                 >
                   {label}
@@ -125,32 +121,32 @@ export function EvaluatorSelectPage({ route, onNavigate }: Props) {
               key={cfg.id}
               type="button"
               onClick={() => onNavigate({ page: "eval-run", evalId: cfg.id })}
-              className={`flex items-center justify-between gap-4 rounded-2xl border bg-white/5 p-5 text-left backdrop-blur-sm transition-all active:scale-[0.99] ${
+              className={`flex items-center justify-between gap-4 rounded-2xl border p-5 text-left transition-all active:scale-[0.99] ${
                 allDone
-                  ? "border-white/10 opacity-50 hover:opacity-70"
-                  : "border-emerald-400/20 hover:border-emerald-400/50 hover:bg-white/10"
+                  ? "border-slate-200 bg-slate-50 opacity-50 hover:opacity-70"
+                  : "border-emerald-200 bg-white shadow-sm hover:border-emerald-400 hover:bg-emerald-50"
               }`}
             >
               <div className="flex items-center gap-4">
-                <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl ${allDone ? "bg-white/5 text-white/30" : "bg-emerald-400/10 text-emerald-400"}`}>
+                <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl ${allDone ? "bg-slate-100 text-slate-300" : "bg-emerald-100 text-emerald-600"}`}>
                   <BookOpen size={26} strokeWidth={1.5} />
                 </div>
                 <div>
-                  <div className={`text-xs font-black uppercase tracking-widest mb-0.5 ${allDone ? "text-white/25" : "text-emerald-400"}`}>
+                  <div className={`text-xs font-black uppercase tracking-widest mb-0.5 ${allDone ? "text-slate-300" : "text-emerald-600"}`}>
                     {cfg.promotion}
                   </div>
-                  <div className={`font-black uppercase tracking-wide text-base leading-tight ${allDone ? "text-white/40" : "text-white/90"}`}>
+                  <div className={`font-black uppercase tracking-wide text-base leading-tight ${allDone ? "text-slate-400" : "text-slate-800"}`}>
                     {cfg.ue || "U.E. sans nom"}
                   </div>
                 </div>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
-                <div className="flex items-center gap-1.5 text-xs text-white/30">
+                <div className="flex items-center gap-1.5 text-xs text-slate-400">
                   <Users size={12} />
                   <span>{done}/{total}</span>
                 </div>
                 {allDone && (
-                  <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-wide text-white/30">
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">
                     Terminé
                   </span>
                 )}
@@ -173,23 +169,23 @@ function PageShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen flex-col bg-slate-800">
-      <header className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+    <div className="flex min-h-screen flex-col bg-slate-50">
+      <header className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
         <button
           type="button"
           onClick={() => onNavigate(backRoute)}
-          className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-white/50 hover:bg-white/5 hover:text-white/80"
+          className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-700"
         >
           <ArrowLeft size={15} /> Retour
         </button>
-        <img src={logoDataUri} alt="Logo" className="h-8 w-auto brightness-0 invert opacity-70" />
+        <img src={logoDataUri} alt="Logo" className="h-8 w-auto opacity-70" />
         <div className="w-20" />
       </header>
 
       <main className="mx-auto w-full max-w-2xl flex-1 px-6 py-10">
         <div className="mb-8">
-          <h1 className="text-xl font-black uppercase tracking-tight text-white">{title}</h1>
-          {subtitle && <p className="mt-1 text-sm text-white/40">{subtitle}</p>}
+          <h1 className="text-xl font-black uppercase tracking-tight text-slate-800">{title}</h1>
+          {subtitle && <p className="mt-1 text-sm text-slate-400">{subtitle}</p>}
         </div>
         {children}
       </main>

@@ -6,7 +6,7 @@ import { useEvalStore } from "../hooks/useEvalStore";
 import { RecapTable } from "../components/RecapTable";
 import { buildRecapXlsxBuffer } from "../utils/recapXlsx";
 import { buildNotesPath, buildExportFileName, saveFileToFolder } from "../utils/exportFolder";
-import { useDialogs } from "../components/Dialogs";
+import { useDialogs } from "../hooks/useDialogs";
 
 interface Props {
   onNavigate: (route: AppRoute) => void;

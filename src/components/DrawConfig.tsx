@@ -3,7 +3,7 @@ import type { DrawMode, QuestionGroup } from "../types";
 import { Trash2, Shuffle } from "lucide-react";
 import mammoth from "mammoth";
 import { Document, Packer, Paragraph } from "docx";
-import { useDialogs } from "./Dialogs";
+import { useDialogs } from "../hooks/useDialogs";
 import { Button } from "./Button";
 
 interface DrawConfigProps {

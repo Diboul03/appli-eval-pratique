@@ -396,11 +396,7 @@ export function RadarChart({
           </defs>
 
           <circle cx={center} cy={center} r={radius} fill="url(#radarGradient)" />
-          <circle cx={center} cy={center} r={radius * 0.5} fill="none" stroke="#bfdbfe" strokeWidth={3} />
-
-          {[0.2, 0.4, 0.6, 0.8, 1].map(lvl => (
-            <circle key={lvl} cx={center} cy={center} r={radius * lvl} fill="none" stroke="#f1f5f9" strokeWidth={1} />
-          ))}
+          <circle cx={center} cy={center} r={radius * 0.5} fill="none" stroke="#93c5fd" strokeWidth={3} />
 
           {axes.map((a, i) => {
             const angle = angleForIndex(i, axes.length);
@@ -431,7 +427,7 @@ export function RadarChart({
                 <line
                   x1={center} y1={center}
                   x2={radarEdgeX} y2={radarEdgeY}
-                  stroke={(isHighlighted || touched[a.id]) ? scoreColor(a.max > 0 ? (scores[a.id] || 0) / a.max : 0) : "#e2e8f0"}
+                  stroke={(isHighlighted || touched[a.id]) ? scoreColor(a.max > 0 ? (scores[a.id] || 0) / a.max : 0) : "#94a3b8"}
                   strokeWidth={isHighlighted ? 5 : touched[a.id] ? 3 : 1.5}
                 />
 

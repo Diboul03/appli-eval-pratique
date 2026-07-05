@@ -15,7 +15,7 @@ import type {
 import { parseStudentsFromText } from "../utils";
 import { setLocalStorageItem } from "../hooks/useLocalStorage";
 import { DrawConfig } from "./DrawConfig";
-import { useDialogs } from "./Dialogs";
+import { useDialogs } from "../hooks/useDialogs";
 import { Button } from "./Button";
 
 interface AdminPanelProps {

@@ -1,39 +1,9 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { Modal } from "./Modal";
 import { Button } from "./Button";
-
-type ToastTone = "success" | "error";
-
-interface ConfirmOptions {
-  title?: string;
-  message: ReactNode;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  danger?: boolean;
-}
-
-interface DialogsApi {
-  /** Affiche une confirmation stylée et résout à true/false. */
-  confirm: (options: ConfirmOptions) => Promise<boolean>;
-  /** Affiche une notification temporaire (toast). */
-  notify: (message: string, tone?: ToastTone) => void;
-}
-
-const DialogsContext = createContext<DialogsApi | null>(null);
-
-export function useDialogs(): DialogsApi {
-  const ctx = useContext(DialogsContext);
-  if (!ctx) throw new Error("useDialogs doit être utilisé dans <DialogProvider>");
-  return ctx;
-}
+import { DialogsContext } from "../hooks/useDialogs";
+import type { DialogsApi, ConfirmOptions, ToastTone } from "../hooks/useDialogs";
 
 export function DialogProvider({ children }: { children: ReactNode }) {
   // --- Toast ---

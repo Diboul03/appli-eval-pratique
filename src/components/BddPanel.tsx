@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import ExcelJS from "exceljs";
 import { logoDataUri } from "../assets/logo";
 import { Button } from "./Button";
-import { useDialogs } from "./Dialogs";
+import { useDialogs } from "../hooks/useDialogs";
 import { buildBddPath, buildExportFileName, saveFileToFolder } from "../utils/exportFolder";
 
 interface Student {
@@ -289,7 +289,7 @@ export function BddPanel({ studentList, defaultExaminer, examDurationMinutes, ue
       if (schedule.length === 0) { notify("Générez d'abord le planning.", "error"); return; }
 
       const wb = new ExcelJS.Workbook();
-      wb.creator = "Appli Eval Pratique — IFSO Vichy";
+      wb.creator = "Praxie — IFSO Vichy";
       wb.created = new Date();
       const ws = wb.addWorksheet("Ordre de passage", { views: [{ showGridLines: false }] });
 

@@ -42,7 +42,7 @@ export async function buildRecapXlsxBuffer(savedEvaluations: SavedEvaluation[]):
   );
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = "Appli Eval Pratique — IFSO Vichy";
+  wb.creator = "Praxie — IFSO Vichy";
   wb.created = new Date();
 
   for (const [key, evals] of sortedGroups) {

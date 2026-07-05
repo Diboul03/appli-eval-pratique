@@ -14,7 +14,7 @@ import { RecapSelectPage } from "./pages/RecapSelectPage";
 import type { AppRoute } from "./types";
 import { Modal } from "./components/Modal";
 import { Button } from "./components/Button";
-import { useDialogs } from "./components/Dialogs";
+import { useDialogs } from "./hooks/useDialogs";
 import { EvaluationPicker } from "./components/EvaluationPicker";
 import { StudentStep } from "./components/StudentStep";
 import { StickyHeader } from "./components/StickyHeader";
@@ -501,7 +501,7 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                   IFSO Vichy Clermont-Ferrand
                 </div>
                 <h1 className="text-2xl font-black uppercase tracking-tight text-white md:text-3xl">
-                  Grille d'évaluation pratique
+                  PRAXIE
                 </h1>
               </div>
 
@@ -511,7 +511,7 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                     variant="primary"
                     size="sm"
                     icon={<Settings size={14} />}
-                    onClick={() => setShowCoordModal(true)}
+                    onClick={() => onNavigate({ page: "admin-home" })}
                     className="uppercase"
                   >
                     Accès administrateur
@@ -916,7 +916,8 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
               {/* Alerte étudiants non évalués avant fin créneau */}
               {!isCoordinator && form.timer.isRunning && form.timer.remainingMs !== null && form.timer.remainingMs > 0 && form.timer.remainingMs < 15 * 60 * 1000 && (() => {
                 const remaining = form.studentList.filter(s =>
-                  !form.savedEvaluations.some(ev => ev.student.nom === s.nom && ev.student.prenom === s.prenom)
+                  !form.savedEvaluations.some(ev => ev.student.nom === s.nom && ev.student.prenom === s.prenom) &&
+                  !(form.studentData.nom === s.nom && form.studentData.prenom === s.prenom)
                 );
                 if (remaining.length === 0) return null;
                 const mins = Math.ceil(form.timer.remainingMs / 60000);
@@ -1455,7 +1456,7 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                 } catch { /* non-bloquant */ }
 
                 handleResetEvaluation();
-                form.setStudentData(prev => ({ ...prev, nom: "", prenom: "" }));
+                form.setStudentData(prev => ({ ...prev, civilite: "", nom: "", prenom: "" }));
                 form.setLoadedStudentKey(null);
                 form.setLoadedEvaluation(null);
                 setShowFinishModal(false);

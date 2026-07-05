@@ -1,6 +1,6 @@
 import type { DrawPersisted, StudentData } from "../types";
 import { RefreshCw, Shuffle } from "lucide-react";
-import { useDialogs } from "./Dialogs";
+import { useDialogs } from "../hooks/useDialogs";
 import { Button } from "./Button";
 
 const STEP_LABELS: Record<number, string> = {

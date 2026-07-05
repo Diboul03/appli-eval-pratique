@@ -15,7 +15,7 @@ import { useExamTimer } from "./useExamTimer";
 import { formatDate, formatTime, generateId } from "../utils";
 import { buildEvaluationsHtml } from "../utils/evaluations";
 import { buildFolderName, saveFileToFolder } from "../utils/exportFolder";
-import { useDialogs } from "../components/Dialogs";
+import { useDialogs } from "../hooks/useDialogs";
 import { sumAxesMax, computeTotal20, areAllSubItemsSelected } from "../utils/scoring";
 
 const defaultAxes: Axis[] = [
