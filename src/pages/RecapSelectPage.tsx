@@ -5,7 +5,7 @@ import type { AppRoute } from "../types";
 import { useEvalStore } from "../hooks/useEvalStore";
 import { RecapTable } from "../components/RecapTable";
 import { buildRecapXlsxBuffer } from "../utils/recapXlsx";
-import { buildNotesPath, buildExportFileName, saveFileToFolder } from "../utils/exportFolder";
+import { buildNotesPath, buildXlsxFileName, saveFileToFolder } from "../utils/exportFolder";
 import { useDialogs } from "../hooks/useDialogs";
 
 interface Props {
@@ -36,7 +36,7 @@ export function RecapSelectPage({ onNavigate }: Props) {
         ? (getSessionForConfig(selectedEvalId)?.date ?? date)
         : date;
       const notesDir = buildNotesPath(promo, sessionDate, ue);
-      const fileName = buildExportFileName(ue, date, ".xlsx");
+      const fileName = buildXlsxFileName(ue, promo, sessionDate);
 
       // Sauvegarde sur la clé USB via Tauri (non-bloquant si hors Tauri)
       try {

@@ -59,12 +59,18 @@ export function StudentStep({
               .sort((a, b) =>
                 `${a.nom} ${a.prenom}`.localeCompare(`${b.nom} ${b.prenom}`, "fr"),
               )
-              .map((s, i) => (
-                <option key={`${s.nom}-${s.prenom}-${i}`} value={`${s.nom}||${s.prenom}`}>
-                  {s.civilite ? `${s.civilite} ` : ""}
-                  {s.nom} {s.prenom}
-                </option>
-              ))}
+              .map((s, i) => {
+                const sched = bddSchedule?.find(
+                  e => e.student.nom === s.nom && e.student.prenom === s.prenom
+                    && (!studentData.date || e.date === studentData.date),
+                );
+                const heureLabel = sched ? ` — ${sched.heure}` : "";
+                return (
+                  <option key={`${s.nom}-${s.prenom}-${i}`} value={`${s.nom}||${s.prenom}`}>
+                    {s.civilite ? `${s.civilite} ` : ""}{s.nom} {s.prenom}{heureLabel}
+                  </option>
+                );
+              })}
           </select>
           {scheduledEntry && (
             <div className="mt-2 flex items-center gap-3 rounded-xl border-2 border-indigo-300 bg-indigo-100 px-4 py-3 shadow-sm">

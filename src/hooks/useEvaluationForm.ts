@@ -13,8 +13,6 @@ import type {
 import { useLocalStorage, getLocalStorageItem } from "./useLocalStorage";
 import { useExamTimer } from "./useExamTimer";
 import { formatDate, formatTime, generateId } from "../utils";
-import { buildEvaluationsHtml } from "../utils/evaluations";
-import { buildFolderName, saveFileToFolder } from "../utils/exportFolder";
 import { useDialogs } from "../hooks/useDialogs";
 import { sumAxesMax, computeTotal20, areAllSubItemsSelected } from "../utils/scoring";
 
@@ -398,26 +396,7 @@ export function useEvaluationForm() {
     )];
     setSavedEvaluations(newAllEvals);
 
-    try {
-      const rawHtml = buildEvaluationsHtml([item]);
-      const html = rawHtml;
-      const [year, month, day] = item.date.split("-");
-      const shortYear = year.slice(2);
-      const safeNom = item.student.nom.replace(/\s+/g, "_");
-      const safePrenom = item.student.prenom.replace(/\s+/g, "_");
-      const datePart = `${day}-${month}-${shortYear}`;
-      const pad = (n: number) => n.toString().padStart(2, "0");
-      const timePart = `${pad(now.getHours())}h${pad(now.getMinutes())}m${pad(now.getSeconds())}`;
-      const dirName = buildFolderName(item.promotion || "", item.ue, item.date);
-      const fileName = `${safeNom}-${safePrenom}-${datePart}_${timePart}.html`;
-      await saveFileToFolder(dirName, fileName, html);
-    } catch (err) {
-      console.error("Erreur lors de l'export HTML automatique", err);
-      notify(
-        "L'évaluation est enregistrée, mais l'export du fichier a échoué. Pensez à exporter manuellement.",
-        "error",
-      );
-    }
+    // Export HTML supprimé ici — géré dans App.tsx via archives/
 
     setExportDateTime({ date: formatDate(now), time: formatTime(now) });
     try { window.localStorage.removeItem("currentEvaluationDraft"); } catch { /* ignore */ }

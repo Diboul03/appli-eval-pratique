@@ -28,11 +28,18 @@ export function buildArchivesPath(promo: string, ue: string): string {
   return `archives/${sanitizeFolder(promo)}/${sanitizeFolder(ue)}`;
 }
 
-/** Construit le nom de fichier pour un export (UE + date). */
+/** Construit le nom de fichier pour un export (UE + date, sans tiret). */
 export function buildExportFileName(ue: string, date: string, ext: string): string {
   const [y, m, d] = (date || "").split("-");
-  const datePart = d && m && y ? `${d}-${m}-${y.slice(2)}` : (date || "");
-  return [sanitizeFolder(ue), datePart].filter(Boolean).join("_") + ext;
+  const datePart = d && m && y ? `${d}${m}${y.slice(2)}` : (date || "");
+  return [sanitizeFolder(ue), datePart].filter(Boolean).join(" ") + ext;
+}
+
+/** Construit le nom de fichier xlsx notes (UE + promo + date, sans tiret). */
+export function buildXlsxFileName(ue: string, promo: string, date: string): string {
+  const [y, m, d] = (date || "").split("-");
+  const datePart = d && m && y ? `${d}${m}${y.slice(2)}` : (date || "");
+  return [sanitizeFolder(ue), sanitizeFolder(promo), datePart].filter(Boolean).join(" ") + ".xlsx";
 }
 
 // Compat aliases (appelés depuis App.tsx / RecapSelectPage avant migration)

@@ -29,7 +29,7 @@ import { BddPanel } from "./components/BddPanel";
 import { RecapTable } from "./components/RecapTable";
 import { useEvaluationStats } from "./hooks/useEvaluationStats";
 import { buildEvaluationsHtml } from "./utils/evaluations";
-import { buildArchivesPath, buildNotesPath, buildExportFileName, saveFileToFolder, sanitizeFolder } from "./utils/exportFolder";
+import { buildArchivesPath, buildNotesPath, buildExportFileName, buildXlsxFileName, saveFileToFolder, sanitizeFolder } from "./utils/exportFolder";
 import { buildRecapXlsxBuffer } from "./utils/recapXlsx";
 import { printHtml, buildRecapHtml } from "./utils/printPdf";
 import { logoDataUri } from "./assets/logo";
@@ -51,7 +51,7 @@ export function App() {
   if (route.page === "admin-session-detail") return <>{<AdminSessionPage sessionId={route.sessionId} onNavigate={setRoute} />}{offlineBadge}</>;
   if (route.page === "admin-create") return <>{<EvalConfigPage mode="create" sessionId={route.sessionId} onNavigate={setRoute} onRequestPreview={cfg => setRoute({ page: "admin-preview", config: cfg, backRoute: { page: "admin-create", sessionId: route.sessionId } })} />}{offlineBadge}</>;
   if (route.page === "admin-edit") return <>{<EvalConfigPage mode="edit" evalId={route.evalId} sessionId={route.sessionId} onNavigate={setRoute} onRequestPreview={cfg => setRoute({ page: "admin-preview", config: cfg, backRoute: { page: "admin-edit", evalId: route.evalId, sessionId: route.sessionId } })} />}{offlineBadge}</>;
-  if (route.page === "admin-bdd") return <>{<BddSelectPage onNavigate={setRoute} />}{offlineBadge}</>;
+  if (route.page === "admin-bdd") return <>{<BddSelectPage onNavigate={setRoute} preselectedConfigId={route.preselectedConfigId} />}{offlineBadge}</>;
   if (route.page === "admin-recap") return <>{<RecapSelectPage onNavigate={setRoute} />}{offlineBadge}</>;
   if (route.page === "admin-preview") return <>{<EvaluatorWizard previewConfig={route.config} onBack={() => setRoute(route.backRoute)} onNavigate={setRoute} />}{offlineBadge}</>;
   if (route.page === "eval-select-evaluator" || route.page === "eval-select-ue") {
@@ -118,6 +118,7 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
   );
 
   const [evalStep, setEvalStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const [justValidated, setJustValidated] = useState(false);
   const radarSectionRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -167,8 +168,8 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
   // Auto-avance quand l'étudiant est sélectionné à l'étape 1
   useEffect(() => {
     if (form.hasSelectedStudent && evalStep === 1 && !isCoordinator) {
-      if (form.drawEnabled) doDraw(false); // tirage sans démarrer le chrono
-      setEvalStep(2); // toujours passer à l'étape 2 (chrono démarre sur "Commencer")
+      if (form.drawEnabled && !form.drawPersisted) doDraw(false); // tirage sans démarrer le chrono
+      setEvalStep(form.drawPersisted ? 3 : 2); // si question déjà tirée (reprise draft), aller en étape 3
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.hasSelectedStudent]);
@@ -496,15 +497,6 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
               </div>
             </div>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-              <div className="mb-3 text-center md:mb-0 md:text-left">
-                <div className="text-xs font-bold uppercase tracking-[0.12em] text-white/40">
-                  IFSO Vichy Clermont-Ferrand
-                </div>
-                <h1 className="text-2xl font-black uppercase tracking-tight text-white md:text-3xl">
-                  PRAXIE
-                </h1>
-              </div>
-
               <div className="flex flex-col items-end gap-2">
                 {!isCoordinator && (
                   <Button
@@ -942,6 +934,27 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
               {/* ── ÉTAPE 1 : Sélection étudiant ── */}
               {evalStep === 1 && (
                 <div className="mx-auto max-w-2xl px-6 py-10 space-y-6">
+                  {justValidated && (
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 flex flex-col items-center gap-3 text-center">
+                      <p className="text-sm font-bold text-emerald-700">Évaluation enregistrée avec succès !</p>
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => { setJustValidated(false); onNavigate({ page: "eval-select-evaluator" }); }}
+                          className="rounded-xl bg-emerald-500 px-5 py-2.5 text-sm font-black text-white hover:bg-emerald-400"
+                        >
+                          ← Retour accueil évaluateur
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setJustValidated(false)}
+                          className="rounded-xl border border-emerald-200 px-4 py-2.5 text-sm font-bold text-emerald-600 hover:bg-emerald-100"
+                        >
+                          Évaluer un autre étudiant
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   <StudentStep
                     selectedStudentValue={form.selectedStudentValue}
                     onStudentChange={form.handleStudentChange}
@@ -1452,7 +1465,8 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                 try {
                   const notesDir = buildNotesPath(promo, sessionDate, item.ue);
                   const xlsxBuf = await buildRecapXlsxBuffer(sessionEvals);
-                  await saveFileToFolder(notesDir, `${baseName}.xlsx`, xlsxBuf);
+                  const xlsxName = buildXlsxFileName(item.ue, promo, sessionDate);
+                  await saveFileToFolder(notesDir, xlsxName, xlsxBuf);
                 } catch { /* non-bloquant */ }
 
                 handleResetEvaluation();
@@ -1461,6 +1475,7 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                 form.setLoadedEvaluation(null);
                 setShowFinishModal(false);
                 notify("Évaluation enregistrée avec succès !");
+                setJustValidated(true);
                 window.scrollTo({ top: 0, behavior: "smooth" });
               } finally {
                 setIsSaving(false);

@@ -116,7 +116,7 @@ export function EvalConfigPage({ mode, evalId, sessionId, onNavigate }: Props) {
     showPercentToEvaluator,
   });
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const missing: string[] = [];
     if (!studentData.promotion) missing.push("Promotion");
     if (!studentData.ue.trim()) missing.push("Unité d'enseignement");
@@ -130,8 +130,18 @@ export function EvalConfigPage({ mode, evalId, sessionId, onNavigate }: Props) {
     }
     if (mode === "create" || !selectedId) {
       const cfg = createConfig(gatherConfig());
-      notify(`Évaluation "${cfg.ue}" (${cfg.promotion}) créée.`);
-      goBack();
+      const wantBdd = await confirm({
+        title: "Créer la BDD de passage ?",
+        message: `L'évaluation "${cfg.ue}" (${cfg.promotion}) a été créée.\n\nVoulez-vous créer maintenant la base de données des horaires de passage ?`,
+        confirmLabel: "Créer la BDD",
+        cancelLabel: "Plus tard",
+        danger: false,
+      });
+      if (wantBdd) {
+        onNavigate({ page: "admin-bdd", preselectedConfigId: cfg.id });
+      } else {
+        goBack();
+      }
     } else {
       updateConfig(selectedId, gatherConfig());
       notify("Évaluation mise à jour.");

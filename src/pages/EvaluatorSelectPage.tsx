@@ -3,6 +3,7 @@ import { ArrowLeft, UserCircle, BookOpen, Users, CalendarDays } from "lucide-rea
 import { logoDataUri } from "../assets/logo";
 import type { AppRoute, EvalConfig } from "../types";
 import { useEvalStore } from "../hooks/useEvalStore";
+import type { EvalSession } from "../types";
 
 interface Props {
   route: { page: "eval-select-evaluator" } | { page: "eval-select-ue"; evaluatorKey: string };
@@ -18,11 +19,19 @@ function evaluatorLabel(cfg: EvalConfig): string {
 }
 
 export function EvaluatorSelectPage({ route, onNavigate }: Props) {
-  const { configs } = useEvalStore();
+  const { configs, sessions } = useEvalStore();
+
+  // Seules les configs appartenant à une session publiée
+  const publishedSessionIds = new Set<string>(
+    (sessions as EvalSession[]).filter(s => s.published).map(s => s.id)
+  );
+  const publishedConfigs = configs.filter(cfg =>
+    cfg.sessionId ? publishedSessionIds.has(cfg.sessionId) : false
+  );
 
   // Toujours calculer ces valeurs (nécessaire pour useState avant tout return conditionnel)
   const selKey = route.page === "eval-select-ue" ? route.evaluatorKey : "";
-  const ues: EvalConfig[] = configs.filter(cfg => evaluatorKey(cfg) === selKey);
+  const ues: EvalConfig[] = publishedConfigs.filter(cfg => evaluatorKey(cfg) === selKey);
   const allDates = [...new Set(
     ues.flatMap(cfg => (cfg.bddSchedule ?? []).map(e => e.date))
   )].sort();
@@ -33,7 +42,7 @@ export function EvaluatorSelectPage({ route, onNavigate }: Props) {
   if (route.page === "eval-select-evaluator") {
     const seen = new Set<string>();
     const evaluators: { key: string; label: string }[] = [];
-    for (const cfg of configs) {
+    for (const cfg of publishedConfigs) {
       const key = evaluatorKey(cfg);
       if (!seen.has(key)) {
         seen.add(key);
@@ -46,7 +55,8 @@ export function EvaluatorSelectPage({ route, onNavigate }: Props) {
         {evaluators.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-slate-100 p-12 text-center text-slate-400">
             <UserCircle size={36} className="mx-auto mb-3 opacity-30" />
-            <p>Aucune évaluation configurée.<br />Contactez un administrateur.</p>
+            <p>Aucune session d'évaluation disponible.</p>
+            <p className="mt-1 text-xs">L'administrateur doit publier une session avant que vous puissiez évaluer.</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">

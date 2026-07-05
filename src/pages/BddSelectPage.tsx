@@ -7,13 +7,15 @@ import { BddPanel } from "../components/BddPanel";
 
 interface Props {
   onNavigate: (route: AppRoute) => void;
+  preselectedConfigId?: string;
 }
 
-export function BddSelectPage({ onNavigate }: Props) {
+export function BddSelectPage({ onNavigate, preselectedConfigId }: Props) {
   const evalStore = useEvalStore();
   const { configs, promotionsAvailable } = evalStore;
-  const [selectedPromo, setSelectedPromo] = useState<string>(promotionsAvailable[0] ?? "");
-  const [selectedEvalId, setSelectedEvalId] = useState<string>("");
+  const preselected = preselectedConfigId ? configs.find(c => c.id === preselectedConfigId) : undefined;
+  const [selectedPromo, setSelectedPromo] = useState<string>(preselected?.promotion ?? promotionsAvailable[0] ?? "");
+  const [selectedEvalId, setSelectedEvalId] = useState<string>(preselectedConfigId ?? "");
   const [testTrigger] = useState(0);
 
   const evalsForPromo = configs.filter(c => c.promotion === selectedPromo);

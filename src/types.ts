@@ -72,6 +72,7 @@ export interface EvalSession {
   name: string;       // ex. "Session Mardi 15 mars"
   date: string;       // YYYY-MM-DD
   configIds: string[]; // IDs des EvalConfig de cette session
+  published: boolean; // true = visible par les évaluateurs
   createdAt: string;
   updatedAt: string;
 }
@@ -106,7 +107,7 @@ export type AppRoute =
   | { page: "admin-session-detail"; sessionId: string }
   | { page: "admin-create"; sessionId: string }
   | { page: "admin-edit"; evalId: string; sessionId: string }
-  | { page: "admin-bdd" }
+  | { page: "admin-bdd"; preselectedConfigId?: string }
   | { page: "admin-recap" }
   | { page: "admin-preview"; config: EvalConfig; backRoute: AppRoute }
   | { page: "eval-select-evaluator" }
