@@ -1,0 +1,53 @@
+name: Build desktop app
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+          - platform: macos-latest
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Praxie ${{ github.ref_name }}"
+          releaseDraft: false
+          prerelease: false
+
+      - name: Upload portable Windows exe
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          cp src-tauri/target/release/app.exe "Praxie-portable-${{ github.ref_name }}.exe"
+          gh release upload "${{ github.ref_name }}" "Praxie-portable-${{ github.ref_name }}.exe" --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
