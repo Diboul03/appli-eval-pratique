@@ -1,9 +1,8 @@
 import React, { useState } from "react";
-import { ArrowLeft, UserCircle, BookOpen, Users, CalendarDays } from "lucide-react";
+import { ArrowLeft, UserCircle, BookOpen, Users, CalendarDays, Play } from "lucide-react";
 import { logoDataUri } from "../assets/logo";
 import type { AppRoute, EvalConfig } from "../types";
 import { useEvalStore } from "../hooks/useEvalStore";
-import type { EvalSession } from "../types";
 
 interface Props {
   route: { page: "eval-select-evaluator" } | { page: "eval-select-ue"; evaluatorKey: string };
@@ -18,16 +17,19 @@ function evaluatorLabel(cfg: EvalConfig): string {
   return [cfg.defaultExaminer.prenom, cfg.defaultExaminer.nom].filter(Boolean).join(" ") || "—";
 }
 
-export function EvaluatorSelectPage({ route, onNavigate }: Props) {
-  const { configs, sessions } = useEvalStore();
+const DRAFT_KEYS = ["currentEvaluationDraft", "drawPersisted"];
 
-  // Seules les configs appartenant à une session publiée
-  const publishedSessionIds = new Set<string>(
-    (sessions as EvalSession[]).filter(s => s.published).map(s => s.id)
-  );
-  const publishedConfigs = configs.filter(cfg =>
-    cfg.sessionId ? publishedSessionIds.has(cfg.sessionId) : false
-  );
+function purgeDraft() {
+  try { DRAFT_KEYS.forEach(k => window.localStorage.removeItem(k)); } catch { /* ignore */ }
+}
+
+export function EvaluatorSelectPage({ route, onNavigate }: Props) {
+  const { configs } = useEvalStore();
+  // Purge automatique au montage — évite tout conflit avec une éval précédente non validée
+  useState(() => { if (route.page === "eval-select-evaluator") purgeDraft(); });
+
+  // Seules les configs individuellement publiées
+  const publishedConfigs = configs.filter(cfg => cfg.published === true);
 
   // Toujours calculer ces valeurs (nécessaire pour useState avant tout return conditionnel)
   const selKey = route.page === "eval-select-ue" ? route.evaluatorKey : "";
@@ -73,6 +75,16 @@ export function EvaluatorSelectPage({ route, onNavigate }: Props) {
             ))}
           </div>
         )}
+        {/* Bouton démonstration */}
+        <div className="mt-10 border-t border-slate-200 pt-6">
+          <button
+            type="button"
+            onClick={() => onNavigate({ page: "demo-eval" })}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/50 py-3.5 text-sm font-semibold text-indigo-500 hover:border-indigo-400 hover:bg-indigo-50 transition-colors"
+          >
+            <Play size={14} /> Voir une évaluation de démonstration
+          </button>
+        </div>
       </PageShell>
     );
   }
@@ -184,11 +196,11 @@ function PageShell({
         <button
           type="button"
           onClick={() => onNavigate(backRoute)}
-          className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+          className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 hover:border-slate-300"
         >
           <ArrowLeft size={15} /> Retour
         </button>
-        <img src={logoDataUri} alt="Logo" className="h-8 w-auto opacity-70" />
+        <img src={logoDataUri} alt="Logo" className="h-9 w-auto" />
         <div className="w-20" />
       </header>
 

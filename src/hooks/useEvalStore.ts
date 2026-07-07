@@ -1,19 +1,31 @@
 import { useCallback } from "react";
 import { useLocalStorage, getLocalStorageItem, setLocalStorageItem } from "./useLocalStorage";
 import { generateId } from "../utils";
-import type { EvalConfig, EvalSession, SavedEvaluation } from "../types";
+import type { EvalConfig, EvalSession, EvalTemplate, SavedEvaluation } from "../types";
 
 const CONFIGS_KEY = "evalConfigs";
 const SESSIONS_KEY = "evalSessions";
+const TEMPLATES_KEY = "evalTemplates";
+
+function readTemplates(): EvalTemplate[] {
+  return getLocalStorageItem<EvalTemplate[]>(TEMPLATES_KEY, []);
+}
+function writeTemplates(templates: EvalTemplate[]): void {
+  setLocalStorageItem(TEMPLATES_KEY, templates);
+}
 
 function readConfigs(): EvalConfig[] {
-  return getLocalStorageItem<EvalConfig[]>(CONFIGS_KEY, []);
+  const raw = getLocalStorageItem<EvalConfig[]>(CONFIGS_KEY, []);
+  // Migration : s'assurer que `published` existe (champ ajouté en v0.8)
+  return raw.map(c => ({ ...c, published: c.published ?? false }));
 }
 function writeConfigs(configs: EvalConfig[]): void {
   setLocalStorageItem(CONFIGS_KEY, configs);
 }
 function readSessions(): EvalSession[] {
-  return getLocalStorageItem<EvalSession[]>(SESSIONS_KEY, []);
+  const raw = getLocalStorageItem<EvalSession[]>(SESSIONS_KEY, []);
+  // Migration : s'assurer que `published` existe (champ ajouté après v0.7.1)
+  return raw.map(s => ({ ...s, published: s.published ?? false }));
 }
 function writeSessions(sessions: EvalSession[]): void {
   setLocalStorageItem(SESSIONS_KEY, sessions);
@@ -82,6 +94,7 @@ function migrate(): void {
       name: `Session du ${label}`,
       date,
       configIds: group.map(c => c.id),
+      published: false,
       createdAt: group[0].createdAt,
       updatedAt: new Date().toISOString(),
     });
@@ -103,6 +116,7 @@ export { blankConfig };
 export function useEvalStore() {
   const [configs, setConfigs] = useLocalStorage<EvalConfig[]>(CONFIGS_KEY, []);
   const [sessions, setSessions] = useLocalStorage<EvalSession[]>(SESSIONS_KEY, []);
+  const [templates, setTemplates] = useLocalStorage<EvalTemplate[]>(TEMPLATES_KEY, []);
 
   // ── Configs ──────────────────────────────────────────────────
   const getConfig = useCallback(
@@ -275,6 +289,39 @@ export function useEvalStore() {
     [setConfigs, setSessions],
   );
 
+  /** Publie ou dépublie un EvalConfig, et synchronise session.published */
+  const toggleConfigPublished = useCallback(
+    (configId: string) => {
+      const cfgs = readConfigs();
+      const cfg = cfgs.find(c => c.id === configId);
+      if (!cfg) return;
+      const nextPublished = !cfg.published;
+      const nextC = cfgs.map(c =>
+        c.id === configId ? { ...c, published: nextPublished, updatedAt: new Date().toISOString() } : c,
+      );
+      writeConfigs(nextC);
+      setConfigs(nextC);
+      // Synchronise session.published : true si au moins une UE publiée
+      if (cfg.sessionId) {
+        const sns = readSessions();
+        const session = sns.find(s => s.id === cfg.sessionId);
+        if (session) {
+          const anyPublished = nextC
+            .filter(c => session.configIds.includes(c.id))
+            .some(c => c.published);
+          const nextS = sns.map(s =>
+            s.id === cfg.sessionId
+              ? { ...s, published: anyPublished, updatedAt: new Date().toISOString() }
+              : s,
+          );
+          writeSessions(nextS);
+          setSessions(nextS);
+        }
+      }
+    },
+    [setConfigs, setSessions],
+  );
+
   /** Crée un EvalConfig et l'attache à une session */
   const createConfigInSession = useCallback(
     (sessionId: string, partial: Partial<EvalConfig> = {}): EvalConfig => {
@@ -304,6 +351,83 @@ export function useEvalStore() {
     [sessions, configs],
   );
 
+  // ── Templates ─────────────────────────────────────────────────
+  const getTemplate = useCallback(
+    (id: string) => templates.find(t => t.id === id) ?? null,
+    [templates],
+  );
+
+  const createTemplate = useCallback(
+    (from: EvalConfig): EvalTemplate => {
+      const tpl: EvalTemplate = {
+        id: generateId(),
+        name: from.ue ? `Modèle ${from.ue}` : "Modèle sans nom",
+        ue: from.ue,
+        axes: structuredClone(from.axes),
+        drawEnabled: from.drawEnabled,
+        drawMode: from.drawMode,
+        drawGroups: structuredClone(from.drawGroups),
+        drawSingles: [...from.drawSingles],
+        examDurationMinutes: from.examDurationMinutes,
+        showFinalNoteToEvaluator: from.showFinalNoteToEvaluator,
+        showBaremeToEvaluator: from.showBaremeToEvaluator,
+        showPercentToEvaluator: from.showPercentToEvaluator,
+        createdAt: new Date().toISOString(),
+      };
+      const next = [...readTemplates(), tpl];
+      writeTemplates(next);
+      setTemplates(next);
+      return tpl;
+    },
+    [setTemplates],
+  );
+
+  const deleteTemplate = useCallback(
+    (id: string) => {
+      const next = readTemplates().filter(t => t.id !== id);
+      writeTemplates(next);
+      setTemplates(next);
+    },
+    [setTemplates],
+  );
+
+  const createTemplateRaw = useCallback(
+    (tpl: EvalTemplate) => {
+      const next = [...readTemplates(), tpl];
+      writeTemplates(next);
+      setTemplates(next);
+    },
+    [setTemplates],
+  );
+
+  const importSession = useCallback(
+    (sessionData: EvalSession, configsData: EvalConfig[]) => {
+      const newSessionId = generateId();
+      const newConfigs: EvalConfig[] = configsData.map(cfg => ({
+        ...cfg,
+        id: generateId(),
+        sessionId: newSessionId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }));
+      const newSession: EvalSession = {
+        ...sessionData,
+        id: newSessionId,
+        configIds: newConfigs.map(c => c.id),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      const nextSessions = [...readSessions(), newSession];
+      const nextConfigs = [...readConfigs(), ...newConfigs];
+      writeSessions(nextSessions);
+      writeConfigs(nextConfigs);
+      setSessions(nextSessions);
+      setConfigs(nextConfigs);
+      return newSession;
+    },
+    [setConfigs, setSessions],
+  );
+
   const promotionsAvailable = [...new Set(configs.map(c => c.promotion).filter(Boolean))].sort();
 
   // Sessions triées par date décroissante
@@ -312,6 +436,11 @@ export function useEvalStore() {
   return {
     configs,
     sessions: sessionsSorted,
+    templates,
+    getTemplate,
+    createTemplate,
+    createTemplateRaw,
+    deleteTemplate,
     getConfig,
     createConfig,
     updateConfig,
@@ -325,8 +454,10 @@ export function useEvalStore() {
     createSession,
     updateSession,
     deleteSession,
+    toggleConfigPublished,
     createConfigInSession,
     getConfigsForSession,
+    importSession,
     promotionsAvailable,
   };
 }

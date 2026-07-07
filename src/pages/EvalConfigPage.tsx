@@ -14,6 +14,7 @@ interface Props {
   mode: "create" | "edit";
   evalId?: string;
   sessionId?: string;
+  templateId?: string;
   onNavigate: (route: AppRoute) => void;
   onRequestPreview?: (config: EvalConfig) => void;
 }
@@ -40,17 +41,22 @@ function configToStudentData(cfg: EvalConfig): StudentData {
   };
 }
 
-export function EvalConfigPage({ mode, evalId, sessionId, onNavigate }: Props) {
+export function EvalConfigPage({ mode, evalId, sessionId, templateId, onNavigate }: Props) {
   const goBack = () => sessionId
     ? onNavigate({ page: "admin-session-detail", sessionId })
     : onNavigate({ page: "admin-home" });
-  const { getConfig, createConfig, updateConfig, deleteConfig } = useEvalStore();
+  const { getConfig, createConfig, createConfigInSession, updateConfig, deleteConfig, getTemplate, createTemplate } = useEvalStore();
   const { confirm, notify } = useDialogs();
 
   const [selectedId, setSelectedId] = useState<string | null>(evalId ?? null);
   const { configs } = useEvalStore();
 
-  const initialConfig = selectedId ? (getConfig(selectedId) ?? blankConfig()) : blankConfig();
+  const tpl = templateId ? getTemplate(templateId) : null;
+  const initialConfig = selectedId
+    ? (getConfig(selectedId) ?? blankConfig())
+    : tpl
+      ? blankConfig({ ue: tpl.ue, axes: structuredClone(tpl.axes), drawEnabled: tpl.drawEnabled, drawMode: tpl.drawMode, drawGroups: structuredClone(tpl.drawGroups), drawSingles: [...tpl.drawSingles], examDurationMinutes: tpl.examDurationMinutes, showFinalNoteToEvaluator: tpl.showFinalNoteToEvaluator, showBaremeToEvaluator: tpl.showBaremeToEvaluator, showPercentToEvaluator: tpl.showPercentToEvaluator })
+      : blankConfig();
 
   const [defaultExaminer, setDefaultExaminer] = useState<ExaminerItem>(initialConfig.defaultExaminer);
   const [studentList, setStudentList] = useState<StudentItem[]>(initialConfig.studentList);
@@ -129,7 +135,19 @@ export function EvalConfigPage({ mode, evalId, sessionId, onNavigate }: Props) {
       return;
     }
     if (mode === "create" || !selectedId) {
-      const cfg = createConfig(gatherConfig());
+      const cfg = sessionId
+        ? createConfigInSession(sessionId, gatherConfig())
+        : createConfig(gatherConfig());
+      // Proposer de sauvegarder comme modèle
+      const wantTemplate = await confirm({
+        title: "Enregistrer comme modèle ?",
+        message: `Voulez-vous sauvegarder "${cfg.ue}" comme modèle réutilisable ?\n\nLe modèle conservera les axes, critères et paramètres de tirage — sans les étudiants ni l'évaluateur.`,
+        confirmLabel: "Enregistrer le modèle",
+        cancelLabel: "Non merci",
+        danger: false,
+      });
+      if (wantTemplate) createTemplate(cfg);
+      // Proposer de créer la BDD
       const wantBdd = await confirm({
         title: "Créer la BDD de passage ?",
         message: `L'évaluation "${cfg.ue}" (${cfg.promotion}) a été créée.\n\nVoulez-vous créer maintenant la base de données des horaires de passage ?`,
@@ -241,7 +259,7 @@ export function EvalConfigPage({ mode, evalId, sessionId, onNavigate }: Props) {
         <div className="flex items-center gap-3">
           <img src={praxieLogoDataUri} alt="Praxie" className="h-7 w-auto rounded-xl" />
           <span className="text-sm font-black uppercase tracking-wide text-white/70">
-            {isEditing ? "Modifier une évaluation" : "Nouvelle évaluation"}
+            {isEditing ? "Modifier une évaluation" : tpl ? `Depuis modèle : ${tpl.name}` : "Nouvelle évaluation"}
           </span>
         </div>
         <div className="flex gap-2">

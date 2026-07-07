@@ -97,22 +97,41 @@ export interface EvalConfig {
   savedEvaluations: SavedEvaluation[];
   bddSchedule?: BddScheduleEntry[];
   sessionId?: string; // référence à l'EvalSession parente
+  published?: boolean; // true = visible par les évaluateurs
   createdAt: string;
   updatedAt: string;
+}
+
+export interface EvalTemplate {
+  id: string;
+  name: string;           // = ue name
+  ue: string;
+  axes: Axis[];
+  drawEnabled: boolean;
+  drawMode: DrawMode;
+  drawGroups: QuestionGroup[];
+  drawSingles: string[];
+  examDurationMinutes: number;
+  showFinalNoteToEvaluator: boolean;
+  showBaremeToEvaluator: boolean;
+  showPercentToEvaluator: boolean;
+  createdAt: string;
 }
 
 export type AppRoute =
   | { page: "home" }
   | { page: "admin-home" }
   | { page: "admin-session-detail"; sessionId: string }
-  | { page: "admin-create"; sessionId: string }
+  | { page: "admin-create"; sessionId: string; templateId?: string }
   | { page: "admin-edit"; evalId: string; sessionId: string }
   | { page: "admin-bdd"; preselectedConfigId?: string }
   | { page: "admin-recap" }
+  | { page: "admin-templates" }
   | { page: "admin-preview"; config: EvalConfig; backRoute: AppRoute }
   | { page: "eval-select-evaluator" }
   | { page: "eval-select-ue"; evaluatorKey: string }
-  | { page: "eval-run"; evalId: string };
+  | { page: "eval-run"; evalId: string }
+  | { page: "demo-eval" };
 
 export interface SavedEvaluation {
   id: string;

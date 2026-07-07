@@ -21,7 +21,7 @@ fn portable_data_dir() -> Result<PathBuf, String> {
     exe_dir.to_path_buf()
   };
 
-  Ok(data_dir.join("appli-eval-pratique-data"))
+  Ok(data_dir.join("praxie-data"))
 }
 
 #[tauri::command]

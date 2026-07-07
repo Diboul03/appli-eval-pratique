@@ -6,70 +6,6 @@ on:
       - "v*"
 
 jobs:
-  build-mac:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-      - name: Install deps
-        run: npm ci
-      - name: Build Mac
-        run: npx tauri build --bundles app,dmg
-      - name: Patch DMG — ajout script première ouverture
-        shell: bash
-        run: |
-          set -e
-          DMG=$(ls src-tauri/target/release/bundle/dmg/*.dmg | head -1)
-          VOLNAME=$(basename "$DMG" .dmg)
-
-          # Monter le DMG original en lecture seule
-          hdiutil attach "$DMG" -mountpoint /tmp/orig_dmg -nobrowse -quiet
-
-          # Copier le contenu (preserve symlinks)
-          mkdir -p /tmp/new_dmg_content
-          rsync -a /tmp/orig_dmg/ /tmp/new_dmg_content/
-
-          # Démonter l'original
-          hdiutil detach /tmp/orig_dmg -quiet
-
-          # Créer le script de première ouverture
-          SCRIPT_PATH="/tmp/new_dmg_content/⚠️ Première ouverture — cliquer ici.command"
-          cat > "$SCRIPT_PATH" << 'EOF'
-          #!/bin/bash
-          # Supprime la quarantaine macOS puis ouvre Praxie
-          if [ -d "/Applications/Praxie.app" ]; then
-            xattr -cr "/Applications/Praxie.app"
-            open "/Applications/Praxie.app"
-          else
-            # App pas encore installée — chercher dans le DMG monté
-            DIR="$(cd "$(dirname "$0")" && pwd)"
-            APP="$DIR/Praxie.app"
-            if [ -d "$APP" ]; then
-              xattr -cr "$APP"
-              open "$APP"
-            fi
-          fi
-          EOF
-          chmod +x "$SCRIPT_PATH"
-
-          # Recréer le DMG compressé
-          hdiutil create -volname "$VOLNAME" \
-            -srcfolder /tmp/new_dmg_content \
-            -ov -format UDZO \
-            /tmp/patched.dmg
-
-          mv /tmp/patched.dmg "$DMG"
-          rm -rf /tmp/orig_dmg /tmp/new_dmg_content
-      - name: Upload Mac DMG
-        uses: actions/upload-artifact@v4
-        with:
-          name: mac-dmg
-          path: src-tauri/target/release/bundle/dmg/*.dmg
-
   build-windows:
     runs-on: windows-latest
     steps:
@@ -92,7 +28,7 @@ jobs:
             src-tauri/target/release/bundle/msi/*.msi
 
   release:
-    needs: [build-mac, build-windows]
+    needs: [build-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write

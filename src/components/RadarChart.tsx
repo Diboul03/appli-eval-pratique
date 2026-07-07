@@ -111,12 +111,12 @@ export function RadarChart({
     const svg = svgRef.current;
     if (!svg) return { x: 0, y: 0 };
     const rect = svg.getBoundingClientRect();
-    // viewBox="-150 -50 1300 1100"
+    // viewBox="-150 -125 1300 1250"
     const scaleX = 1300 / rect.width;
-    const scaleY = 1100 / rect.height;
+    const scaleY = 1250 / rect.height;
     return {
       x: (clientX - rect.left) * scaleX - 150 - center,
-      y: (clientY - rect.top) * scaleY - 50 - center,
+      y: (clientY - rect.top) * scaleY - 125 - center,
     };
   }, []);
 
@@ -373,7 +373,7 @@ export function RadarChart({
           ref={svgRef}
           viewBox={(() => {
             const w = 1300 / zoomScale;
-            const h = 1100 / zoomScale;
+            const h = 1250 / zoomScale;
             return `${500 - w / 2} ${500 - h / 2} ${w} ${h}`;
           })()}
           className={`h-auto w-full ${hoveredAxisIndex !== null ? "cursor-grab" : "cursor-not-allowed"} select-none touch-none outline-none`}
@@ -410,12 +410,16 @@ export function RadarChart({
             const siItems = a.subItems || [];
             const siCount = siItems.length;
             const siRowH = 60;
-            const siAreaH = siCount > 0 ? siCount * siRowH + 4 : 0;
+            const bulkRowH = siCount > 0 ? 34 : 0;
+            const siAreaH = siCount > 0 ? siCount * siRowH + 4 + bulkRowH : 0;
             const titleBlockH = 42;
             // Pour l'axe du haut (flipUp) : la boîte s'étend vers le haut depuis ly
-            const flipUp = Math.sin(rad) < -0.3;
-            const rectY = flipUp ? Math.max(10, ly - titleBlockH - siAreaH) : ly - 22;
             const rectH = titleBlockH + siAreaH;
+            const flipUp = Math.sin(rad) < -0.3;
+            const rawRectY = flipUp ? ly - rectH : ly - 22;
+            const rectY = flipUp
+              ? Math.max(-100, rawRectY)
+              : Math.min(rawRectY, 1115 - rectH);
             const titleY = rectY + 26;
             const siBaseY = rectY + titleBlockH;
 
@@ -470,16 +474,17 @@ export function RadarChart({
                       )}
                       {(() => {
                         const [line1, line2] = wrapLabel(si.label);
+                        const fs = si.label.length > 26 ? 13 : si.label.length > 18 ? 15 : 18;
                         return (
                           <text
                             x={lx}
-                            fontSize={18}
+                            fontSize={fs}
                             fontWeight={700}
                             textAnchor="middle"
                             fill={isUntouched ? "#92400e" : "#1e293b"}
                           >
                             <tspan x={lx} y={rowY + (line2 ? 13 : 20)}>{line1}</tspan>
-                            {line2 && <tspan x={lx} dy={18}>{line2}</tspan>}
+                            {line2 && <tspan x={lx} dy={fs + 2}>{line2}</tspan>}
                           </text>
                         );
                       })()}
@@ -529,6 +534,35 @@ export function RadarChart({
                     </g>
                   );
                 })}
+
+                {/* Boutons "tout en vert/orange/rouge" */}
+                {siCount > 0 && (() => {
+                  const bulkY = siBaseY + siCount * siRowH + 6;
+                  const btnW = 60; const btnH = 22; const gap = 5;
+                  const totalW = 3 * btnW + 2 * gap;
+                  const startX = lx - totalW / 2;
+                  const BULK = [
+                    { status: "ACQUIS"     as const, fill: "#059669", stroke: "#065f46", label: "Tous ✓" },
+                    { status: "EN_COURS"   as const, fill: "#d97706", stroke: "#92400e", label: "Tous ~" },
+                    { status: "NON_ACQUIS" as const, fill: "#dc2626", stroke: "#7f1d1d", label: "Tous ✗" },
+                  ];
+                  return BULK.map((btn, bi) => {
+                    const bx = startX + bi * (btnW + gap);
+                    return (
+                      <g key={btn.status}
+                        style={{ cursor: "pointer" }}
+                        onMouseDown={e => e.stopPropagation()}
+                        onTouchStart={e => { e.stopPropagation(); setSubChecks?.(prev => ({ ...prev, [a.id]: Object.fromEntries(siItems.map(si => [si.id, btn.status])) })); }}
+                        onClick={e => { e.stopPropagation(); setSubChecks?.(prev => ({ ...prev, [a.id]: Object.fromEntries(siItems.map(si => [si.id, btn.status])) })); }}
+                      >
+                        <rect x={bx} y={bulkY} width={btnW} height={btnH} rx={6} fill={btn.fill} opacity={0.85} />
+                        <text x={bx + btnW / 2} y={bulkY + 15} fontSize={13} fontWeight={800} textAnchor="middle" fill="white" style={{ pointerEvents: "none" }}>
+                          {btn.label}
+                        </text>
+                      </g>
+                    );
+                  });
+                })()}
                 </g>{/* fin groupe label */}
               </g>
             );

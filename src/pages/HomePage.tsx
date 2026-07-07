@@ -1,29 +1,18 @@
-import { ShieldCheck, ClipboardCheck, Moon, Sun } from "lucide-react";
+import { ShieldCheck, ClipboardCheck } from "lucide-react";
 import { praxieLogoDataUri } from "../assets/praxie-logo";
 import type { AppRoute } from "../types";
-import { useDarkMode } from "../hooks/useDarkMode";
 
 interface Props {
   onNavigate: (route: AppRoute) => void;
 }
 
 export function HomePage({ onNavigate }: Props) {
-  const [dark, toggleDark] = useDarkMode();
-
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
       {/* Header */}
       <header className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
         <img src={praxieLogoDataUri} alt="Praxie" className="h-10 w-auto rounded-xl" />
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={toggleDark}
-            title={dark ? "Passer en mode clair" : "Passer en mode sombre"}
-            className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-          >
-            {dark ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
             IFSO Vichy · Clermont-Ferrand
           </span>

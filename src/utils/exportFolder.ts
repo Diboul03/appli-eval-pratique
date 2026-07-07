@@ -12,12 +12,17 @@ export function buildBddPath(ue: string): string {
   return `bdd/${sanitizeFolder(ue)}`;
 }
 
+/** Convertit YYYY-MM-DD → DD-MM-YYYY pour les noms de dossiers. */
+function toFolderDate(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return d && m && y ? `${d}-${m}-${y}` : iso;
+}
+
 /**
- * Notes : appli-eval-pratique-data/notes/{promo}/{sessionDate}/{ue}/
- * sessionDate = YYYY-MM-DD de la session d'éval.
+ * Notes : appli-eval-pratique-data/notes/{promo}/{DD-MM-YYYY}/{ue}/
  */
 export function buildNotesPath(promo: string, sessionDate: string, ue: string): string {
-  return `notes/${sanitizeFolder(promo)}/${sessionDate}/${sanitizeFolder(ue)}`;
+  return `notes/${sanitizeFolder(promo)}/${toFolderDate(sessionDate)}/${sanitizeFolder(ue)}`;
 }
 
 /**

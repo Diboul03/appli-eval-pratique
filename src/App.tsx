@@ -1,12 +1,16 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
-import { PenTool, HelpCircle, Settings, AlertTriangle, Target, Download, Upload, KeyRound, TableIcon } from "lucide-react";
+import { useDarkMode } from "./hooks/useDarkMode";
+import { PenTool, HelpCircle, Settings, AlertTriangle, Target, Download, Upload, KeyRound, TableIcon, Moon, Sun } from "lucide-react";
 import { useEvaluationForm, formatDurationMs } from "./hooks/useEvaluationForm";
 import { useEvalStore } from "./hooks/useEvalStore";
 import { HomePage } from "./pages/HomePage";
 import { AdminHomePage } from "./pages/AdminHomePage";
 import { AdminSessionPage } from "./pages/AdminSessionPage";
+import { AdminTemplatesPage } from "./pages/AdminTemplatesPage";
+import { DemoEvalPage } from "./pages/DemoEvalPage";
 import { EvalConfigPage } from "./pages/EvalConfigPage";
 import { EvaluatorSelectPage } from "./pages/EvaluatorSelectPage";
 import { BddSelectPage } from "./pages/BddSelectPage";
@@ -38,6 +42,29 @@ import type { DrawPersisted } from "./types";
 export function App() {
   const [route, setRoute] = useState<AppRoute>({ page: "home" });
   const isOnline = useOnlineStatus();
+  const [dark, toggleDark] = useDarkMode();
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        const win = getCurrentWindow();
+        win.isFullscreen().then(fs => win.setFullscreen(!fs)).catch(() => {});
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  const darkToggle = (
+    <button
+      type="button"
+      onClick={toggleDark}
+      title={dark ? "Passer en mode clair" : "Passer en mode sombre"}
+      className="fixed bottom-4 left-4 z-[9999] flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-md hover:bg-slate-100 transition-colors"
+    >
+      {dark ? <Sun size={15} /> : <Moon size={15} />}
+    </button>
+  );
 
   const offlineBadge = !isOnline ? (
     <div className="fixed bottom-4 right-4 z-[9999] flex items-center gap-2 rounded-full border border-red-300 bg-red-600 px-3 py-1.5 shadow-lg">
@@ -46,20 +73,22 @@ export function App() {
     </div>
   ) : null;
 
-  if (route.page === "home") return <>{<HomePage onNavigate={setRoute} />}{offlineBadge}</>;
-  if (route.page === "admin-home") return <>{<AdminHomePage onNavigate={setRoute} />}{offlineBadge}</>;
-  if (route.page === "admin-session-detail") return <>{<AdminSessionPage sessionId={route.sessionId} onNavigate={setRoute} />}{offlineBadge}</>;
-  if (route.page === "admin-create") return <>{<EvalConfigPage mode="create" sessionId={route.sessionId} onNavigate={setRoute} onRequestPreview={cfg => setRoute({ page: "admin-preview", config: cfg, backRoute: { page: "admin-create", sessionId: route.sessionId } })} />}{offlineBadge}</>;
-  if (route.page === "admin-edit") return <>{<EvalConfigPage mode="edit" evalId={route.evalId} sessionId={route.sessionId} onNavigate={setRoute} onRequestPreview={cfg => setRoute({ page: "admin-preview", config: cfg, backRoute: { page: "admin-edit", evalId: route.evalId, sessionId: route.sessionId } })} />}{offlineBadge}</>;
-  if (route.page === "admin-bdd") return <>{<BddSelectPage onNavigate={setRoute} preselectedConfigId={route.preselectedConfigId} />}{offlineBadge}</>;
-  if (route.page === "admin-recap") return <>{<RecapSelectPage onNavigate={setRoute} />}{offlineBadge}</>;
-  if (route.page === "admin-preview") return <>{<EvaluatorWizard previewConfig={route.config} onBack={() => setRoute(route.backRoute)} onNavigate={setRoute} />}{offlineBadge}</>;
+  if (route.page === "home") return <>{<HomePage onNavigate={setRoute} />}{darkToggle}{offlineBadge}</>;
+  if (route.page === "admin-home") return <>{<AdminHomePage onNavigate={setRoute} />}{darkToggle}{offlineBadge}</>;
+  if (route.page === "admin-session-detail") return <>{<AdminSessionPage sessionId={route.sessionId} onNavigate={setRoute} />}{darkToggle}{offlineBadge}</>;
+  if (route.page === "admin-create") return <>{<EvalConfigPage mode="create" sessionId={route.sessionId} templateId={route.templateId} onNavigate={setRoute} onRequestPreview={cfg => setRoute({ page: "admin-preview", config: cfg, backRoute: { page: "admin-create", sessionId: route.sessionId } })} />}{darkToggle}{offlineBadge}</>;
+  if (route.page === "admin-edit") return <>{<EvalConfigPage mode="edit" evalId={route.evalId} sessionId={route.sessionId} onNavigate={setRoute} onRequestPreview={cfg => setRoute({ page: "admin-preview", config: cfg, backRoute: { page: "admin-edit", evalId: route.evalId, sessionId: route.sessionId } })} />}{darkToggle}{offlineBadge}</>;
+  if (route.page === "admin-bdd") return <>{<BddSelectPage onNavigate={setRoute} preselectedConfigId={route.preselectedConfigId} />}{darkToggle}{offlineBadge}</>;
+  if (route.page === "admin-recap") return <>{<RecapSelectPage onNavigate={setRoute} />}{darkToggle}{offlineBadge}</>;
+  if (route.page === "admin-templates") return <>{<AdminTemplatesPage onNavigate={setRoute} />}{darkToggle}{offlineBadge}</>;
+  if (route.page === "admin-preview") return <>{<EvaluatorWizard previewConfig={route.config} onBack={() => setRoute(route.backRoute)} onNavigate={setRoute} />}{darkToggle}{offlineBadge}</>;
+  if (route.page === "demo-eval") return <>{<DemoEvalPage onNavigate={setRoute} />}{darkToggle}{offlineBadge}</>;
   if (route.page === "eval-select-evaluator" || route.page === "eval-select-ue") {
-    return <>{<EvaluatorSelectPage route={route} onNavigate={setRoute} />}{offlineBadge}</>;
+    return <>{<EvaluatorSelectPage route={route} onNavigate={setRoute} />}{darkToggle}{offlineBadge}</>;
   }
   // route.page === "eval-run" → EvaluatorWizard
   const evalId = route.page === "eval-run" ? route.evalId : undefined;
-  return <>{<EvaluatorWizard evalId={evalId} onNavigate={setRoute} />}{offlineBadge}</>;
+  return <>{<EvaluatorWizard evalId={evalId} onNavigate={setRoute} />}{darkToggle}{offlineBadge}</>;
 }
 
 function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId?: string; previewConfig?: import("./types").EvalConfig; onBack?: () => void; onNavigate: (r: AppRoute) => void }) {
@@ -81,6 +110,7 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
   useEffect(() => {
     const cfg = previewConfig ?? (evalId ? evalStore.getConfig(evalId) : null);
     if (!cfg) return;
+    form.setDrawPersisted(null); // réinitialise le tirage de la session précédente
     form.setStudentList(cfg.studentList);
     form.setStudentListValidated(cfg.studentListValidated);
     form.setAxes(cfg.axes);
@@ -107,7 +137,7 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
 
   const [showHelp, setShowHelp] = useState(false);
   const [isCoordinator, setIsCoordinator] = useState(false);
-  const [adminView, setAdminView] = useState<"config" | "preview" | "recap" | "bdd">("config");
+  const [adminView, setAdminView] = useState<"config" | "recap" | "modifier" | "bdd">("config");
   const [bddTestTrigger, setBddTestTrigger] = useState(0);
   const [showCoordModal, setShowCoordModal] = useState(false);
   const [coordCode, setCoordCode] = useState("");
@@ -430,14 +460,13 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
 
   const stats = useEvaluationStats(form.savedEvaluations);
 
-  const studentsEvaluatedCount = form.savedEvaluations.length;
+  const studentsEvaluatedCount = form.savedEvaluations.length + (form.hasSelectedStudent ? 1 : 0);
   const totalStudentsCount = form.studentList.length;
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
       <StickyHeader
         isCoordinator={isCoordinator}
-        hasSelectedStudent={form.hasSelectedStudent}
         studentData={form.studentData}
         studentsEvaluatedCount={studentsEvaluatedCount}
         totalStudentsCount={totalStudentsCount}
@@ -480,20 +509,21 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                   <button
                     type="button"
                     onClick={() => onNavigate({ page: "home" })}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-600 hover:bg-slate-100 transition-colors"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 hover:border-slate-300 transition-colors"
                   >
-                    🏠 Accueil
+                    ← Accueil
                   </button>
                 )}
-                <span className={`inline-flex items-center rounded-lg border px-3 py-1 text-[10px] font-bold uppercase tracking-wide ${
+                <div className={`inline-flex cursor-default select-none items-center gap-2 rounded-xl border-2 px-4 py-1.5 text-xs font-black uppercase tracking-widest ${
                   previewConfig
-                    ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+                    ? "border-indigo-300 bg-indigo-100 text-indigo-700"
                     : isCoordinator
-                    ? "border-amber-200 bg-amber-50 text-amber-700"
-                    : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    ? "border-amber-300 bg-amber-100 text-amber-700"
+                    : "border-emerald-300 bg-emerald-100 text-emerald-700"
                 }`}>
-                  {previewConfig ? "👁 Mode aperçu" : isCoordinator ? "⚙️ Mode administrateur" : "📋 Mode évaluateur"}
-                </span>
+                  <span className="text-sm">{previewConfig ? "👁" : isCoordinator ? "⚙️" : "📋"}</span>
+                  {previewConfig ? "Mode aperçu" : isCoordinator ? "Mode administrateur" : "Mode évaluateur"}
+                </div>
               </div>
             </div>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between">
@@ -505,6 +535,8 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                     icon={<Settings size={14} />}
                     onClick={() => onNavigate({ page: "admin-home" })}
                     className="uppercase"
+                    disabled={form.hasSelectedStudent && !justValidated}
+                    title={form.hasSelectedStudent && !justValidated ? "Terminez ou validez l'évaluation en cours avant de quitter" : undefined}
                   >
                     Accès administrateur
                   </Button>
@@ -680,7 +712,12 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
             <div className="p-8 text-center">
               <div className="mb-4 text-6xl">🎉</div>
               <h2 className="mb-2 text-2xl font-black text-emerald-700">ÉPREUVE TERMINÉE</h2>
-              <p className="mb-6 text-slate-600">Tous les étudiants ont été évalués.</p>
+              <p className="mb-1 text-lg font-bold text-slate-700">
+                Merci{form.studentData.evaluatorPrenom || form.studentData.evaluatorNom
+                  ? ` ${[form.studentData.evaluatorPrenom, form.studentData.evaluatorNom].filter(Boolean).join(" ")}`
+                  : ""} !
+              </p>
+              <p className="mb-6 text-slate-500">Tous les étudiants ont été évalués.</p>
 
               <div className="mb-6 inline-block rounded-xl border border-emerald-200 bg-emerald-50 p-4">
                 <span className="text-lg font-bold text-emerald-800">
@@ -730,8 +767,8 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                     {(
                       [
                         { key: "config",  label: "Configuration" },
-                        { key: "preview", label: "Aperçu évaluateur" },
                         { key: "recap",   label: "Récapitulatif des notes" },
+                        { key: "modifier", label: "Modifier une éval." },
                         { key: "bdd",     label: "Création BDD" },
                       ] as const
                     ).map(({ key, label }) => (
@@ -834,7 +871,13 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                   )}
 
                   {adminView === "recap" && (
-                    <RecapTable savedEvaluations={form.savedEvaluations} />
+                    <RecapTable
+                      savedEvaluations={form.savedEvaluations}
+                      onDelete={isCoordinator && evalId ? (evId) => {
+                        evalStore.removeEvaluation(evalId, evId);
+                        form.setSavedEvaluations(prev => prev.filter(e => e.id !== evId));
+                      } : undefined}
+                    />
                   )}
 
                   {adminView === "bdd" && (
@@ -854,54 +897,40 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                 </>
               )}
 
-              {isCoordinator && adminView === "preview" && (
-                <div className="mx-auto max-w-2xl p-6 space-y-4">
-                  <h2 className="text-sm font-black uppercase tracking-wide text-amber-700">Aperçu de l'évaluation</h2>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-xl border border-slate-200 bg-white p-4">
-                      <p className="mb-1 text-[10px] font-black uppercase text-slate-400">Promotion</p>
-                      <p className="font-bold text-slate-800">{form.studentData.promotion || <span className="italic text-slate-400">—</span>}</p>
+              {isCoordinator && adminView === "modifier" && (
+                <div className="mx-auto max-w-2xl px-6 py-6 space-y-4">
+                  {!form.loadedStudentKey ? (
+                    <div className="space-y-4">
+                      <p className="text-sm font-bold text-amber-800">Choisissez une évaluation à modifier :</p>
+                      {form.savedEvaluations.length === 0 ? (
+                        <p className="text-sm italic text-slate-400">Aucune évaluation enregistrée.</p>
+                      ) : (
+                        <div className="flex items-end gap-2">
+                          <EvaluationPicker
+                            savedEvaluations={form.savedEvaluations}
+                            value={form.selectedSavedId}
+                            onChange={form.setSelectedSavedId}
+                            placeholder="— Choisir une évaluation —"
+                            className="flex-1"
+                          />
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            disabled={!form.selectedSavedId}
+                            onClick={() => {
+                              if (form.selectedSavedId) {
+                                form.loadSavedEvaluation(form.selectedSavedId);
+                                clearCanvasSignature();
+                                window.setTimeout(() => setEvalStep(3), 120);
+                              }
+                            }}
+                          >
+                            Charger
+                          </Button>
+                        </div>
+                      )}
                     </div>
-                    <div className="rounded-xl border border-slate-200 bg-white p-4">
-                      <p className="mb-1 text-[10px] font-black uppercase text-slate-400">U.E.</p>
-                      <p className="font-bold text-slate-800">{form.studentData.ue || <span className="italic text-slate-400">—</span>}</p>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-white p-4">
-                      <p className="mb-1 text-[10px] font-black uppercase text-slate-400">Évaluateur</p>
-                      <p className="font-bold text-slate-800">
-                        {[form.defaultExaminer.prenom, form.defaultExaminer.nom].filter(Boolean).join(" ") || <span className="italic text-slate-400">—</span>}
-                      </p>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-white p-4">
-                      <p className="mb-1 text-[10px] font-black uppercase text-slate-400">Durée examen</p>
-                      <p className="font-bold text-slate-800">{form.examDurationMinutes ? `${form.examDurationMinutes} min` : <span className="italic text-slate-400">—</span>}</p>
-                    </div>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 bg-white p-4">
-                    <p className="mb-2 text-[10px] font-black uppercase text-slate-400">Axes ({form.axes.length}) — total {form.axesMaxSum} pts</p>
-                    {form.axes.length === 0 ? <p className="text-sm italic text-slate-400">Aucun axe configuré</p> : (
-                      <div className="space-y-1">
-                        {form.axes.map(ax => (
-                          <div key={ax.id} className="flex justify-between rounded-lg bg-slate-50 px-3 py-1.5 text-sm">
-                            <span>{ax.label || "Sans nom"}</span>
-                            <span className="font-bold text-amber-600">{ax.max} pts</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="rounded-xl border border-slate-200 bg-white p-4">
-                    <p className="mb-1 text-[10px] font-black uppercase text-slate-400">Étudiants</p>
-                    <p className="text-sm text-slate-700">{form.studentList.length > 0 ? `${form.studentList.length} inscrits` : <span className="italic text-slate-400">Aucun</span>}</p>
-                  </div>
-                  {form.drawEnabled && (
-                    <div className="rounded-xl border border-slate-200 bg-white p-4">
-                      <p className="mb-1 text-[10px] font-black uppercase text-slate-400">Tirage</p>
-                      <p className="text-sm text-slate-700">
-                        {form.drawMode === "group" ? `${form.drawGroups.length} groupe(s)` : `${form.drawSingles.length} question(s)`}
-                      </p>
-                    </div>
-                  )}
+                  ) : null}
                 </div>
               )}
 
@@ -912,23 +941,19 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                   !(form.studentData.nom === s.nom && form.studentData.prenom === s.prenom)
                 );
                 if (remaining.length === 0) return null;
-                const mins = Math.ceil(form.timer.remainingMs / 60000);
                 return (
                   <div className="mx-4 mt-3 flex items-start gap-3 rounded-xl border-2 border-orange-400 bg-orange-50 px-4 py-3 shadow-sm">
                     <span className="text-xl">⏰</span>
                     <div>
                       <p className="text-sm font-extrabold text-orange-800">
-                        {mins} min restante{mins > 1 ? "s" : ""} — {remaining.length} étudiant{remaining.length > 1 ? "s" : ""} non évalué{remaining.length > 1 ? "s" : ""} :
-                      </p>
-                      <p className="text-xs text-orange-700">
-                        {remaining.map(s => `${s.nom} ${s.prenom}`).join(" · ")}
+                        {remaining.length} étudiant{remaining.length > 1 ? "s" : ""} non évalué{remaining.length > 1 ? "s" : ""}
                       </p>
                     </div>
                   </div>
                 );
               })()}
 
-              {!isCoordinator && (
+              {(!isCoordinator || (isCoordinator && adminView === "modifier")) && (
               <>
 
               {/* ── ÉTAPE 1 : Sélection étudiant ── */}
@@ -968,7 +993,7 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                   <ExaminerStep
                     evaluatorFullName={`${form.studentData.evaluatorNom} ${form.studentData.evaluatorPrenom}`.trim()}
                     total20={form.total20}
-                    showFinalNote={(isCoordinator && adminView !== "preview") || form.showFinalNoteToEvaluator}
+                    showFinalNote={(isCoordinator && true) || form.showFinalNoteToEvaluator}
                   />
                   <p className="text-center text-xs text-slate-400 italic pt-2">
                     La sélection d'un étudiant démarre automatiquement l'évaluation.
@@ -1021,6 +1046,16 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
 
                   <div className="flex justify-between pt-4">
                     <Button variant="ghost" onClick={async () => {
+                      if (form.timer.isRunning) {
+                        const ok = await confirm({
+                          title: "Abandonner l'évaluation ?",
+                          message: "Le chrono est en cours. Abandonner et revenir à la sélection d'étudiant ?",
+                          confirmLabel: "Abandonner",
+                          danger: true,
+                        });
+                        if (!ok) return;
+                        form.timer.reset();
+                      }
                       await form.handleStudentChange("");
                       setEvalStep(1);
                     }}>← Retour</Button>
@@ -1095,8 +1130,8 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                       setTouched={form.setTouched}
                       touched={form.touched}
                       axesMaxSum={form.axesMaxSum}
-                      showBareme={(isCoordinator && adminView !== "preview") || form.showBaremeToEvaluator}
-                      showPercent={(isCoordinator && adminView !== "preview") || form.showPercentToEvaluator}
+                      showBareme={(isCoordinator && true) || form.showBaremeToEvaluator}
+                      showPercent={(isCoordinator && true) || form.showPercentToEvaluator}
                       subChecks={form.subChecks}
                       setSubChecks={form.setSubChecks}
                     />
@@ -1236,7 +1271,7 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                           </div>
                         )}
                         <div className="flex justify-between pt-4 border-t border-slate-100">
-                          <Button variant="ghost" onClick={() => setEvalStep(form.drawEnabled ? 2 : 1)}>← Retour</Button>
+                          <Button variant="ghost" onClick={() => { form.timer.reset(); setEvalStep(form.drawEnabled ? 2 : 1); }}>← Retour</Button>
                           <Button
                             variant="primary"
                             disabled={!canAdvance}
@@ -1334,7 +1369,7 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
           )}
 
           <div className="flex flex-wrap items-center justify-center gap-3 border-t border-slate-200 bg-slate-50 p-6 print:hidden">
-            {!isCoordinator && !form.allStudentsEvaluated && form.savedEvaluations.length > 0 && (
+            {!isCoordinator && !form.allStudentsEvaluated && form.savedEvaluations.length > 0 && evalStep === 1 && (
               <div className="w-full rounded-xl border-2 border-amber-300 bg-amber-50 p-3">
                 <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-amber-700">
                   Modifier une évaluation enregistrée
@@ -1475,7 +1510,12 @@ function EvaluatorWizard({ evalId, previewConfig, onBack, onNavigate }: { evalId
                 form.setLoadedEvaluation(null);
                 setShowFinishModal(false);
                 notify("Évaluation enregistrée avec succès !");
-                setJustValidated(true);
+                if (isCoordinator) {
+                  setEvalStep(1);
+                  setAdminView("recap");
+                } else {
+                  setJustValidated(true);
+                }
                 window.scrollTo({ top: 0, behavior: "smooth" });
               } finally {
                 setIsSaving(false);

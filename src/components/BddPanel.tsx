@@ -24,6 +24,7 @@ interface BddPanelProps {
   examDurationMinutes: number;
   ue: string;
   promotion: string;
+  sessionDate?: string;
   testTrigger?: number;
   otherSchedules?: OtherScheduleEntry[][];
   onScheduleGenerated?: (schedule: { student: Student; heure: string; period: "matin" | "apmidi"; date: string }[]) => void;
@@ -102,12 +103,12 @@ function TimeSlot({
   );
 }
 
-export function BddPanel({ studentList, defaultExaminer, examDurationMinutes, ue, promotion, testTrigger, otherSchedules, onScheduleGenerated }: BddPanelProps) {
+export function BddPanel({ studentList, defaultExaminer, examDurationMinutes, ue, promotion, sessionDate, testTrigger, otherSchedules, onScheduleGenerated }: BddPanelProps) {
     const { notify } = useDialogs();
 
     const [juryNumero, setJuryNumero] = useState("Jury 1");
     const [lieu, setLieu] = useState("");
-    const [jourPassage, setJourPassage] = useState("");
+    const [jourPassage, setJourPassage] = useState(sessionDate ?? "");
     const [tempsPresence, setTempsPresence] = useState("20 min");
 
     const [matinActive, setMatinActive] = useState(true);
@@ -127,6 +128,25 @@ export function BddPanel({ studentList, defaultExaminer, examDurationMinutes, ue
     const [manualHeure, setManualHeure] = useState("");
     const [conflictWarning, setConflictWarning] = useState<string | null>(null);
     const [pendingManualEntry, setPendingManualEntry] = useState<ScheduleEntry | null>(null);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+
+    // Étudiants non encore dans le planning
+    const remainingStudents = studentList.filter(s =>
+      !schedule.some(e => e.student.nom === s.nom && e.student.prenom === s.prenom)
+    );
+    const suggestions = manualNom.trim().length > 0
+      ? remainingStudents.filter(s =>
+          s.nom.toLowerCase().includes(manualNom.toLowerCase()) ||
+          s.prenom.toLowerCase().includes(manualNom.toLowerCase())
+        )
+      : remainingStudents;
+
+    const selectSuggestion = (s: Student) => {
+      setManualNom(s.nom);
+      setManualPrenom(s.prenom);
+      setManualCivilite(s.civilite ?? "M.");
+      setShowSuggestions(false);
+    };
 
     // Réagit au testTrigger même quand le composant vient d'être monté
     useEffect(() => {
@@ -506,15 +526,34 @@ export function BddPanel({ studentList, defaultExaminer, examDurationMinutes, ue
                 <option>Mme</option>
               </select>
             </div>
-            <div>
+            <div className="relative">
               <label className={labelCls}>Nom *</label>
               <input
                 type="text"
                 value={manualNom}
-                onChange={e => { setManualNom(e.target.value); setConflictWarning(null); }}
+                onChange={e => { setManualNom(e.target.value); setConflictWarning(null); setShowSuggestions(true); }}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                 placeholder="NOM"
                 className={fieldCls(manualNom)}
+                autoComplete="off"
               />
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-48 overflow-y-auto rounded-xl border border-indigo-200 bg-white shadow-lg">
+                  {suggestions.map(s => (
+                    <button
+                      key={`${s.nom}-${s.prenom}`}
+                      type="button"
+                      onMouseDown={() => selectSuggestion(s)}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-indigo-50"
+                    >
+                      <span className="text-[10px] text-slate-400">{s.civilite}</span>
+                      <span className="font-bold text-slate-800">{s.nom}</span>
+                      <span className="text-slate-500">{s.prenom}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div>
               <label className={labelCls}>Prénom</label>

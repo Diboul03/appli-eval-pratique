@@ -12,7 +12,7 @@ interface Props {
 
 export function BddSelectPage({ onNavigate, preselectedConfigId }: Props) {
   const evalStore = useEvalStore();
-  const { configs, promotionsAvailable } = evalStore;
+  const { configs, sessions, promotionsAvailable } = evalStore;
   const preselected = preselectedConfigId ? configs.find(c => c.id === preselectedConfigId) : undefined;
   const [selectedPromo, setSelectedPromo] = useState<string>(preselected?.promotion ?? promotionsAvailable[0] ?? "");
   const [selectedEvalId, setSelectedEvalId] = useState<string>(preselectedConfigId ?? "");
@@ -20,6 +20,7 @@ export function BddSelectPage({ onNavigate, preselectedConfigId }: Props) {
 
   const evalsForPromo = configs.filter(c => c.promotion === selectedPromo);
   const selectedConfig = configs.find(c => c.id === selectedEvalId);
+  const selectedSession = selectedConfig?.sessionId ? sessions.find(s => s.id === selectedConfig.sessionId) : undefined;
 
   if (configs.length === 0) {
     return (
@@ -72,6 +73,7 @@ export function BddSelectPage({ onNavigate, preselectedConfigId }: Props) {
             examDurationMinutes={selectedConfig.examDurationMinutes}
             ue={selectedConfig.ue}
             promotion={selectedConfig.promotion}
+            sessionDate={selectedSession?.date}
             testTrigger={testTrigger}
             otherSchedules={configs
               .filter(c => c.id !== selectedConfig.id && c.promotion === selectedConfig.promotion && c.bddSchedule)

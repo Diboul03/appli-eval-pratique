@@ -14,7 +14,6 @@ const STEP_LABELS: Record<number, string> = {
 
 interface StickyHeaderProps {
   isCoordinator: boolean;
-  hasSelectedStudent: boolean;
   studentData: StudentData;
   studentsEvaluatedCount: number;
   totalStudentsCount: number;
@@ -39,7 +38,7 @@ function QuestionPopup({
   drawPersisted: DrawPersisted;
   onClose: () => void;
 }) {
-  const [pos, setPos] = useState({ x: Math.max(0, window.innerWidth / 2 - 200), y: 80 });
+  const [pos, setPos] = useState({ x: Math.max(0, window.innerWidth - 340), y: 80 });
   const dragging = useRef(false);
   const offset = useRef({ x: 0, y: 0 });
 
@@ -185,7 +184,12 @@ export function StickyHeader({
               <span className="text-sm font-bold text-white/80">
                 {studentData.ue && <span>{studentData.ue}</span>}
                 {studentData.ue && totalStudentsCount > 0 && <span className="mx-1.5 opacity-50">·</span>}
-                {totalStudentsCount > 0 && <span className="text-white/50">{studentsEvaluatedCount}/{totalStudentsCount} évalués</span>}
+                {totalStudentsCount > 0 && (() => {
+                    const remaining = totalStudentsCount - studentsEvaluatedCount;
+                    return remaining > 0
+                      ? <span className="text-white/50">{remaining} restant{remaining > 1 ? "s" : ""}</span>
+                      : null;
+                  })()}
               </span>
             </div>
           </div>

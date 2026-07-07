@@ -846,8 +846,9 @@ export function AdminPanel({
             </Button>
           </div>
 
-          <div className="text-xs text-amber-700">
-            Total barème: {axesMaxSum.toFixed(1)}
+          <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5">
+            <span className="text-xs font-bold uppercase tracking-wide text-amber-700">Total barème</span>
+            <span className="text-lg font-black text-amber-800">{axesMaxSum.toFixed(axesMaxSum % 1 === 0 ? 0 : 1)} pts</span>
           </div>
         </div>
       </div>
