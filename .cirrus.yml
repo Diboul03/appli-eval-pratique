@@ -1,0 +1,29 @@
+windows_build_task:
+  only_if: $CIRRUS_TAG =~ 'v.*'
+
+  windows_container:
+    image: cirrusci/windowsservercore:2019
+    cpu: 4
+    memory: 8G
+
+  env:
+    GITHUB_TOKEN: ENCRYPTED[REMPLACER_PAR_TOKEN_CHIFFRE]
+
+  install_tools_script:
+    - choco install nodejs-lts -y --no-progress
+    - choco install gh -y --no-progress
+    - curl -sSf -o rustup-init.exe https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe
+    - rustup-init.exe -y --default-toolchain stable-msvc --no-modify-path
+    - setx PATH "%PATH%;%USERPROFILE%\.cargo\bin" /M
+
+  install_deps_script:
+    - npm ci
+
+  build_script:
+    - npx tauri build --bundles nsis,msi
+
+  upload_script:
+    - copy src-tauri\target\release\app.exe Praxie-portable-%CIRRUS_TAG%.exe
+    - gh release upload %CIRRUS_TAG% Praxie-portable-%CIRRUS_TAG%.exe --clobber
+    - for /f "delims=" %%f in ('dir /b "src-tauri\target\release\bundle\nsis\*.exe"') do gh release upload %CIRRUS_TAG% "src-tauri\target\release\bundle\nsis\%%f" --clobber
+    - for /f "delims=" %%f in ('dir /b "src-tauri\target\release\bundle\msi\*.msi"') do gh release upload %CIRRUS_TAG% "src-tauri\target\release\bundle\msi\%%f" --clobber
